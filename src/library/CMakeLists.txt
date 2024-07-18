@@ -1,0 +1,1 @@
+add_subdirectory(work_contract)
