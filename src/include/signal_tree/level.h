@@ -57,7 +57,7 @@ namespace bcpp::implementation::signal_tree
         static auto constexpr node_count = T::number_of_nodes;
         static auto constexpr counters_per_node = node_type::number_of_counters;
 
-        bool empty() const noexcept;
+        bool empty() const noexcept requires (root_level_traits<T>);
 
         bool set
         (
@@ -91,10 +91,11 @@ namespace bcpp::implementation::signal_tree
 
 
 //=============================================================================
-template <bcpp::implementation::signal_tree::root_level_traits T>
+template <bcpp::implementation::signal_tree::level_traits_concept T>
 inline bool bcpp::implementation::signal_tree::level<T>::empty
 (
 ) const noexcept
+requires (root_level_traits<T>)
 {
     return nodes_[0].empty();
 }
@@ -126,7 +127,7 @@ inline bool bcpp::implementation::signal_tree::level<T>::set
 
 
 //=============================================================================
-template <bcpp::implementation::signal_tree::root_level_traits T>
+template <bcpp::implementation::signal_tree::level_traits_concept T>
 inline auto bcpp::implementation::signal_tree::level<T>::select
 (
     // return the index of a counter which is not zero (indicates that one of the leaf nodes
@@ -156,8 +157,8 @@ inline auto bcpp::implementation::signal_tree::level<T>::select
 
     if constexpr (root_level_traits<T>)
     {
-        if (selectedCounter == ~0)
-            return ~0;
+        if (selectedCounter == invalid_signal_index)
+            return invalid_signal_index;
     }
     
     if constexpr (leaf_level_traits<T>)

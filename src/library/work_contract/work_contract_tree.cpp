@@ -10,7 +10,7 @@ bcpp::work_contract_tree<T>::work_contract_tree
     contracts_(available_.capacity()),
     releaseToken_(available_.capacity())
 {
-    for (auto i = 0; i < available_.capacity(); ++i)
+    for (auto i = 0ull; i < available_.capacity(); ++i)
         available_.set(i);
 }
 

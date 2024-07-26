@@ -15,9 +15,9 @@
 namespace
 {
     int cores[] = {16,20,24,28,17,21,25,29,18,22,26,30,19,23,27,31};
-    int mainCpu = 0;
+    //int mainCpu = 0;
 
-    static auto constexpr total_ops = (1 << 18);
+    static auto constexpr total_ops = (1 << 17);
 
 
     //==============================================================================
@@ -55,7 +55,7 @@ auto signal_tree_enqueue_test
 
     // threads
     std::vector<std::jthread> threads(threadCount);
-    for (auto i = 0; i < threadCount; ++i)
+    for (auto i = 0ull; i < threadCount; ++i)
     {
         threads[i] = std::jthread([&, threadIndex=i]
                 (
@@ -71,7 +71,7 @@ auto signal_tree_enqueue_test
 
                     // start enqueue
                     auto n = threadIndex;
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                     {
                         signalTree->set(n);
                         n += threadCount;
@@ -85,7 +85,7 @@ auto signal_tree_enqueue_test
                     
                     // dequeue.  select bias bits which tend to keep threads
                     // from contending.  This is an advantage that queue's can't really duplicate.
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                         signalTree->select(threadIndex * opsPerThread);
 
                     readyDequeueCount--;
@@ -147,7 +147,7 @@ auto moody_camel_enqueue_test
 
     // threads
     std::vector<std::jthread> threads(threadCount);
-    for (auto i = 0; i < threadCount; ++i)
+    for (auto i = 0ull; i < threadCount; ++i)
     {
         threads[i] = std::jthread([&, threadIndex=i]
                 (
@@ -163,7 +163,7 @@ auto moody_camel_enqueue_test
 
                     // start enqueue
                     std::uint64_t localPushTotal = 0;
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                     {
                         while (!queue.enqueue(threadIndex))
                             ;
@@ -179,7 +179,7 @@ auto moody_camel_enqueue_test
 
                     std::int32_t valuePopped;
                     std::uint64_t localPopTotal = 0;
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                     {
                         while (!queue.try_dequeue(valuePopped))
                             ;
@@ -249,7 +249,7 @@ auto mpmc_queue
 
     // threads
     std::vector<std::jthread> threads(threadCount);
-    for (auto i = 0; i < threadCount; ++i)
+    for (auto i = 0ull; i < threadCount; ++i)
     {
         threads[i] = std::jthread([&, threadIndex=i]
                 (
@@ -264,7 +264,7 @@ auto mpmc_queue
                         ;
 
                     // start enqueue
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                     {
                         while (!queue.enqueue(i))
                             ;
@@ -276,7 +276,7 @@ auto mpmc_queue
                         ;
 
                     std::int32_t valuePopped;
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                         while (!queue.dequeue(valuePopped))
                             ;
                         
@@ -343,7 +343,7 @@ auto mpsc_enqueue_test
 
     // threads
     std::vector<std::jthread> threads(threadCount);
-    for (auto i = 0; i < threadCount; ++i)
+    for (auto i = 0ull; i < threadCount; ++i)
     {
         threads[i] = std::jthread([&, threadIndex = i]
                 (
@@ -358,14 +358,14 @@ auto mpsc_enqueue_test
                         ;
 
                     std::int32_t valuePopped;
-                    std::uint64_t localPopTotal = 0;
+                    //std::uint64_t localPopTotal = 0;
 
                     // start enqueue
-                    std::uint64_t localPushTotal = 0;
+                    //std::uint64_t localPushTotal = 0;
                     std::uint64_t totalPopsRemaining = opsPerThread;
 
                     auto valueToPush = (threadIndex + 1);
-                    for (auto i = 0; i < opsPerThread; ++i)
+                    for (auto i = 0ull; i < opsPerThread; ++i)
                     {
                         while (!queue.push(valueToPush))
                             ;
@@ -448,12 +448,9 @@ void enqueue_test
  //   for (auto i = 2; i <= 16; ++i)
  //       signal_tree_enqueue_test(i);
 
-    for (auto i = 0; i < 1024; ++i)
-    {
-        std::cout << "\nMPSC queue: \n";
-        for (auto i = 2; i <= 16; ++i)
-            mpsc_enqueue_test(i);
-    }
+    std::cout << "\nMPSC queue: \n";
+    for (auto i = 2; i <= 16; ++i)
+        mpsc_enqueue_test(i);
 
     std::cout << "\nes MPMC queue: \n";
     for (auto i = 2; i <= 16; ++i)

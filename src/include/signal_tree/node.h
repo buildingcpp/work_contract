@@ -124,7 +124,7 @@ inline auto bcpp::implementation::signal_tree::node<T>::select
             if (value_.compare_exchange_strong(expected, expected - addend[counterIndex]))
                 return counterIndex;
         }
-        return ~0;  
+        return invalid_signal_index;  
     }
     else
     {
@@ -136,7 +136,7 @@ inline auto bcpp::implementation::signal_tree::node<T>::select
             if (expected = value_.fetch_and(~bit); ((expected & bit) == bit))
                 return counterIndex;
         }
-        return ~0;
+        return invalid_signal_index;
     }   
 }
 

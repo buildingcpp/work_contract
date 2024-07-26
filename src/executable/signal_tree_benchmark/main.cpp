@@ -52,108 +52,110 @@ int main
     char const **
 )
 {
-    {
-        bcpp::signal_tree<32768, 1> s;
-        for (auto i = 0; i < 32768; ++i)
-        {
-            s.set(i);
-        }
-        for (auto i = 0; i < 32768; ++i)
-        {
-            if (i == 684)
-                int y = 9;
-            auto n = s.select(i);
-            if (n != i)
-                int y = 9;
-        }
-    }
-
     set_cpu_affinity(mainCpu);
 
-    using signal_tree_type = bcpp::signal_tree<1 << 11>;
-    auto signalTree = std::make_unique<signal_tree_type>();
-    std::cout << "overhead for tree = " << sizeof(*signalTree) << "\n";
-    static auto constexpr num_threads = 16;
-    static auto constexpr num_loops = ((100'000'000 + signal_tree_type::capacity() - 1) / signal_tree_type::capacity());
+    for (auto num_threads = 1ull; num_threads <= 16; num_threads++)
+    {
+        using signal_tree_type = bcpp::signal_tree<1 << 18>;
+        auto signalTree = std::make_unique<signal_tree_type>();
+     //   std::cout << "overhead for tree = " << sizeof(*signalTree) << "\n";
+    //    static auto constexpr num_threads = 16;
 
-    std::atomic<std::size_t> totalSet = 0;
-    std::atomic<std::size_t> totalSelected = 0;
+        std::atomic<std::uint64_t> totalSet = 0;
+        std::atomic<std::uint64_t> totalSelected = 0;
 
-    std::vector<std::function<void()>> wc(signal_tree_type::capacity());
-    for (auto & x : wc)
-        x = [](){};
+        std::vector<std::function<void()>> wc(signal_tree_type::capacity());
+        for (auto & x : wc)
+            x = [](){};
 
-    std::atomic<bool> startTest = false;
-    std::atomic<std::size_t> activeThreadCount = 0;
-    auto test = [&]()
-            {
-                auto threadIndex = activeThreadCount++;
-                set_cpu_affinity(cores[threadIndex]);
-                auto localTotalSet = 0;
-                auto localTotalSelected = 0;
+        std::atomic<bool> startTest = false;
+        std::atomic<std::uint64_t> activeThreadCount = 0;
 
-                while (!startTest)
-                    ;
 
-                for (auto loopIndex = 0; loopIndex < num_loops; ++loopIndex)
+        std::atomic<std::uint64_t> setterCount{0};
+        std::atomic<std::uint64_t> resetterCount{0};
+        auto test = [&]()
                 {
-                    // add signals 
-                    for (auto i = threadIndex; i < signalTree->capacity(); i += num_threads)
-                        localTotalSet += signalTree->set(i);
-                    
-                    // remove signals using bias
-                    for (auto i = threadIndex; i < signalTree->capacity(); i += num_threads)
-                    {
-                        if (auto signalIndex = signalTree->select(i); signalIndex != ~0)
-                        {
-                            wc[signalIndex]();
-                            localTotalSelected += (signalIndex == i);
-                        }
-                    }
+                    auto threadIndex = activeThreadCount++;
+                    set_cpu_affinity(cores[threadIndex]);
+                    auto localTotalSet = 0;
+                    auto localTotalSelected = 0;
 
-/*
-                    // remove signals randomly
-                    while (!signalTree->empty())
-                    {
-                        auto signalIndex = signalTree->select();
-                        localTotalSelected += (signalIndex != ~0);
-                    }
-
-                    while (localTotalSet != localTotalSelected)
+                    while (!startTest)
                         ;
+
+                    auto opsPerThread = (signalTree->capacity() / num_threads);
+
+                    // set all signals
+                    auto base = (threadIndex * opsPerThread);
+                    for (auto i = 0ull; i < opsPerThread; ++i)
+                        localTotalSet += signalTree->set(base + i); // linear set from base
+
+                    // set all signals
+                    //base = threadIndex;
+                    for (auto i = 0ull; i < opsPerThread; ++i)
+                    {
+                        auto signalNumber = signalTree->select(base + i);
+                    //    base += num_threads; // stride reset
+                        localTotalSelected += (signalNumber != bcpp::invalid_signal_index);
+                    }
+
+                        /*
+                        // add signals 
+
+                        
+                        // remove signals using bias
+                        for (auto i = threadIndex; i < signalTree->capacity(); i += num_threads)
+                        {
+                            if (auto signalIndex = signalTree->select(i); signalIndex != invalid_signal_index)
+                            {
+                                wc[signalIndex]();
+                                localTotalSelected += (signalIndex == i);
+                            }
+                        }
 */
-                }
+    /*
+                        // remove signals randomly
+                        while (!signalTree->empty())
+                        {
+                            auto signalIndex = signalTree->select();
+                            localTotalSelected += (signalIndex != invalid_signal_index);
+                        }
 
-                totalSet += localTotalSet;
-                totalSelected += localTotalSelected;
-                activeThreadCount--;
-            };
+                        while (localTotalSet != localTotalSelected)
+                            ;
+    */
+                    totalSet += localTotalSet;
+                    totalSelected += localTotalSelected;
+                    activeThreadCount--;
+                };
 
-    std::vector<std::jthread> threads(num_threads);
-    for (auto & thread : threads)
-        thread = std::jthread(test);
+        std::vector<std::jthread> threads(num_threads);
+        for (auto & thread : threads)
+            thread = std::jthread(test);
 
-    while (activeThreadCount != num_threads)
-        ;
+        while (activeThreadCount != num_threads)
+            ;
 
-    auto start = std::chrono::system_clock::now();
-    startTest = true;
-    while (activeThreadCount)
-        ;
-    auto finish = std::chrono::system_clock::now();
-    auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
-    auto sec = ((double)elapsed.count() / std::nano::den);    
+        auto start = std::chrono::system_clock::now();
+        startTest = true;
+        while (activeThreadCount)
+            ;
+        auto finish = std::chrono::system_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(finish - start);
+        auto sec = ((double)elapsed.count() / std::nano::den);    
     
-    if (totalSelected != totalSet)
-        std::cout << "Error - total signals set = " << totalSet << ", total signals detected = " << totalSelected << "\n";
-    else
-        std::cout << "Success - total singals set and detected = " << totalSelected << "\n";
+ //       if (totalSelected != totalSet)
+ //           std::cout << "Error - total signals set = " << totalSet << ", total signals detected = " << totalSelected << "\n";
+ //       else
+ //           std::cout << "Success - total singals set and detected = " << totalSelected << "\n";
 
-    std::cout << "Elapsed time: " << sec << " sec\n";
-    std::cout << (((double)totalSet / std::mega::num) / sec) << " MB operations/sec\n";
+ //       std::cout << "Elapsed time: " << sec << " sec\n";
+        std::cout << num_threads << ", " << (std::uint64_t)(totalSet / sec) << "\n";
+    
+    //    std::cout << ((double)elapsed.count() / totalSelected) << " ns per operation\n";
 
-    std::cout << ((double)elapsed.count() / totalSelected) << " ns per operation\n";
-
-    std::cout << "Test complete\n";
+    }
+//    std::cout << "Test complete\n";
     return 0;
 }

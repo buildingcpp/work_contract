@@ -1,7 +1,6 @@
 #pragma once
 
 #include <include/signal_tree.h>
-#include "./signal_map.h"
 #include <include/synchronization_mode.h>
 #include <include/non_movable.h>
 #include <include/non_copyable.h>
@@ -77,7 +76,7 @@ namespace bcpp
 
         void stop();
 
- //   private:
+    private:
 
         class auto_erase_contract;
         
@@ -243,7 +242,7 @@ inline auto bcpp::work_contract_tree<T>::create_contract
     work_contract_type::initial_state initialState
 ) -> work_contract_type
 {
-    if (auto contractId = available_.select(); contractId != ~0)
+    if (auto contractId = available_.select(); contractId != invalid_signal_index)
     {
         auto & contract = contracts_[contractId];
         contract.flags_ = 0;
@@ -276,7 +275,7 @@ inline auto bcpp::work_contract_tree<T>::create_contract
     work_contract_type::initial_state initialState
 ) -> work_contract_type
 {
-    if (auto contractId = available_.select(); contractId != ~0)
+    if (auto contractId = available_.select(); contractId != invalid_signal_index)
     {
         auto & contract = contracts_[contractId];
         contract.flags_ = 0;
@@ -342,7 +341,7 @@ inline bool bcpp::work_contract_tree<T>::execute_next_contract
         if (!waitableState_.wait(this))// this should be done more graceful but for now ..
             return false;
     }
-    if (auto contractId = tree_.select(); contractId != ~0)
+    if (auto contractId = tree_.select(); contractId != invalid_signal_index)
     {
         process_contract(contractId);
         return true;
@@ -361,7 +360,7 @@ inline bool bcpp::work_contract_tree<T>::execute_next_contract
 {
     if (waitableState_.wait_for(this, duration))    // this should be done more graceful but for now ..
     {
-        if (auto contractId = tree_.select(); contractId != ~0)
+        if (auto contractId = tree_.select(); contractId != invalid_signal_index)
         {
             process_contract(contractId);
             return true;

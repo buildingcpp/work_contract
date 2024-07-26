@@ -148,7 +148,7 @@ std::int32_t seive
     for (auto & _ : seive)
         _ = true;
     seive[0] = seive[1] = false;
-    for (auto i = 2; i < max; ++i)
+    for (auto i = 2ull; i < max; ++i)
         for (auto n = i * 2; n < max; n += i)
             seive[n] = false;
     for (auto n : seive)
@@ -602,11 +602,11 @@ int main
 */
 
         std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
-        for (auto i = 1; i <= max_threads; ++i)
+        for (auto i = 2ull; i <= max_threads; ++i)
             work_contract_test<bcpp::synchronization_mode::non_blocking>(i, test_duration, task);
 
         std::cout << "MoodyCamel (MPMC)\nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
-        for (auto i = 2; i <= max_threads; ++i)
+        for (auto i = 2ull; i <= max_threads; ++i)
             mc_test(i, test_duration, task);
 
     };

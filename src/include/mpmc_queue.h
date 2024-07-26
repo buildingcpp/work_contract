@@ -12,11 +12,11 @@ namespace bcpp
 {
 
     template <typename T, std::size_t N>
-    class mpmc_queue
+    class alignas(64) mpmc_queue
     {
     public:
 
-        static auto constexpr capacity = (1 << (64 - std::countl_zero(N) - 1));
+        static auto constexpr capacity = (1 << (64 - std::countl_zero(N - 1)));
 
         mpmc_queue();
 
@@ -44,13 +44,18 @@ namespace bcpp
         work_contract_tree<bcpp::synchronization_mode::non_blocking> workContractTree_;
 
         std::array<work_contract<bcpp::synchronization_mode::non_blocking>, sub_queues> workContract_;
+
+        static thread_local std::int32_t    tlsValuePopped_;
+        static thread_local bool            tlsPopResult_;
     };
+
+
+    template <typename T, std::size_t N> thread_local std::int32_t  mpmc_queue<T, N>::tlsValuePopped_;
+    template <typename T, std::size_t N> thread_local bool mpmc_queue<T, N>::tlsPopResult_;
 
 } // namespace bcpp
 
 
-static thread_local std::int32_t valuePopped = 0;
-static thread_local bool popResult = false;
 
 
 //=============================================================================
@@ -66,15 +71,15 @@ inline bcpp::mpmc_queue<T, N>::mpmc_queue
     auto queueIndex = 0;
     for (auto & workContract :  workContract_)
     {
-        workContract = workContractTree_.create_contract([this, queue = queues_[queueIndex].get(), queueIndex]
+        workContract = workContractTree_.create_contract([this, queue = queues_[queueIndex].get()]
                 (
-                    auto & workContractToken
+                    auto & token
                 )
                 {
-                    auto [success, sizeBeforePop] = queue->pop(valuePopped);
-                    popResult = success;
-                    if ((!success) || (sizeBeforePop > 1))
-                        workContractToken.schedule();
+                    auto [success, more] = queue->pop(tlsValuePopped_);
+                    tlsPopResult_ = success;
+                    if ((!success) || (more))
+                        token.schedule();
                 });
         if (!workContract.is_valid())
             std::cout << "Failed to create work contract\n";
@@ -118,10 +123,10 @@ inline bool bcpp::mpmc_queue<T, N>::pop
     T & data
 )
 {
-    popResult = false;
-    if (workContractTree_.execute_next_contract())
-        data = valuePopped;
-    return popResult;
+    tlsPopResult_ = false;
+    workContractTree_.execute_next_contract();
+    data = tlsValuePopped_;
+    return tlsPopResult_;
 }
 
 

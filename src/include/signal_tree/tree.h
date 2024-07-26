@@ -134,7 +134,7 @@ requires (std::popcount(N) == 1)
 inline auto bcpp::implementation::signal_tree::tree<N, N1>::select 
 (
     // select and return the index of a leaf which is 'set'
-    // return ~0 if no leaf is 'set' (empty tree)
+    // return invalid_signal_index if no leaf is 'set' (empty tree)
 ) noexcept -> std::uint64_t
 {
     static thread_local std::uint64_t tls_inclinationFlags;
@@ -150,7 +150,7 @@ requires (std::popcount(N) == 1)
 inline auto bcpp::implementation::signal_tree::tree<N, N1>::select 
 (
     // select and return the index of a leaf which is 'set'
-    // return ~0 if no leaf is 'set' (empty tree)
+    // return invalid_signal_index if no leaf is 'set' (empty tree)
     std::uint64_t bias
 ) noexcept -> std::uint64_t
 {
@@ -160,14 +160,14 @@ inline auto bcpp::implementation::signal_tree::tree<N, N1>::select
     static auto constexpr shift_to_remove_tree_index = (64 - bias_bits_consumed_by_tree_index);
     bias <<= shift_to_remove_tree_index;
 
-    for (auto i = 0; i < sub_tree_count; ++i)
+    for (auto i = 0ull; i < sub_tree_count; ++i)
     {
         auto & tree = subTrees_[treeIndex];
         auto signalIndex = tree.select(bias);
-        if (signalIndex != ~0)
+        if (signalIndex != invalid_signal_index)
             return (treeIndex * sub_tree_capacity) + signalIndex;
         treeIndex++;
         treeIndex %= sub_tree_count;
     }
-    return ~0;
+    return invalid_signal_index;
 }

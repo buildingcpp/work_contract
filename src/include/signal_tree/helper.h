@@ -60,5 +60,7 @@ namespace bcpp
     //=========================================================================
     // these will be type rich types in the near future
     using tree_index = std::uint64_t;
+
+    static auto constexpr invalid_signal_index = 0ull;
     
 } // namespace bcpp

@@ -28,7 +28,7 @@ namespace bcpp
             T_ &&
         );
 
-        std::pair<bool, std::uint64_t> pop
+        std::pair<bool, bool> pop
         (
             T &
         );
@@ -43,13 +43,17 @@ namespace bcpp
         static std::uint64_t constexpr busy_flag     = 0x4000000000000000;
         static std::uint64_t constexpr ready_flag    = 0x8000000000000000;
 
-        std::array<std::atomic<std::uint64_t>, capacity>    index_;
+        struct entry
+        {
+            std::atomic<std::uint64_t> index_;
+            T data_;
+        };
 
-        std::array<T, capacity>                             data_;
+        std::array<entry, capacity> value_;
 
-        std::atomic<std::uint64_t>                          writeIndex_{0};
+        std::atomic<std::uint64_t>  writeIndex_{0};
 
-        std::atomic<std::uint64_t>                          readIndex_{0};
+        std::atomic<std::uint64_t>  readIndex_{0};
     };
 
 } // namespace bcpp
@@ -76,37 +80,37 @@ inline bool bcpp::mpsc_queue<T, N>::push
     auto expected = (writeIndex < capacity) ? 0 : writeIndex;
     auto desired = (expected | busy_flag);
     auto maskedWriteIndex = writeIndex & capacity_mask;
-    if (!index_[maskedWriteIndex].compare_exchange_strong(expected, desired))
+    if (!value_[maskedWriteIndex].index_.compare_exchange_strong(expected, desired))
         return false; // slot is being written into or filled with unconsumed value
     ++writeIndex_;
     if constexpr (std::is_trivially_copyable_v<T>)
     {
-        data_[maskedWriteIndex] = std::forward<T_>(data);
+        value_[maskedWriteIndex].data_ = std::forward<T_>(data);
     }
     else
     {
-        new (&data_[maskedWriteIndex]) T(std::forward<T_>(data));
+        new (&value_[maskedWriteIndex].data_) T(std::forward<T_>(data));
     }
-    index_[maskedWriteIndex] ^= (busy_flag | ready_flag);
+    value_[maskedWriteIndex].index_ ^= (busy_flag | ready_flag);
     return true; 
 }
 
 
 //=============================================================================
 template <typename T, std::uint64_t N>
-inline std::pair<bool, std::uint64_t> bcpp::mpsc_queue<T, N>::pop
+inline std::pair<bool, bool> bcpp::mpsc_queue<T, N>::pop
 (
     T & data
 )
 {
     auto readIndex = readIndex_.load();
     auto maskedReadIndex = readIndex & capacity_mask;
-    if (index_[maskedReadIndex] < ready_flag)
-        return {false, 0};
-    data = data_[maskedReadIndex];
-    index_[maskedReadIndex] = (readIndex + capacity);
-    readIndex_ = readIndex + 1;
-    return {true, writeIndex_ - readIndex};
+    if (value_[maskedReadIndex].index_ < ready_flag)
+        return {false, false};
+    data = value_[maskedReadIndex].data_;
+    value_[maskedReadIndex].index_ = (readIndex + capacity);
+    readIndex_ = ++readIndex;
+    return {true, writeIndex_ > readIndex};
 }
 
 
