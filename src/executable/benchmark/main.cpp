@@ -291,7 +291,7 @@ auto tbb_test
 )
 {
     // craete queue and fill it with 'max_tasks' tasks
-    tbb::concurrent_queue<std::int32_t> queue(max_tasks);
+    tbb::concurrent_queue<std::int32_t> queue;
 
     // to make this test as fair as possible the tasks will be created up front
     // and only the index of the task will be managed by the queue.
@@ -491,10 +491,6 @@ auto work_contract_latency_test
 }
 */
 
-#include "./enqueue_test.h"
-#include <include/mpsc_queue.h>
-#include <iomanip>
-
 
 //=============================================================================
 int main
@@ -503,73 +499,8 @@ int main
     char const **
 )
 {
-    /*
-    {
-        bool volatile startFlag = false;
-        std::atomic<int> activeThreadCount{0};
-        auto numThreads = 8;
-        auto queueSize = 1 << 20;
-        std::atomic<std::uint64_t> pushTotal = 0ull;
-        bcpp::mpsc_queue<int> mpscQueue(queueSize);
-        std::vector<std::jthread> threads(numThreads);
-        auto threadIndex = 0;
-        for (auto & thread : threads)
-        {
-            thread = std::jthread([&, threadIndex]()
-                    {
-                        ++activeThreadCount;
-                        while (!startFlag)
-                            ;
-                        for (auto i = threadIndex; i < queueSize; i += numThreads)
-                        {
-                            while (!mpscQueue.push(i))
-                                ;
-                            pushTotal += i;
-                        }
-                        --activeThreadCount;
-                    });
-            ++threadIndex;
-        }
-
-        while (activeThreadCount != numThreads)
-            ;
-        startFlag = true;
-        while (activeThreadCount != 0)
-            ;
-        std::cout << "push total = " << pushTotal << "\n";
-        
-        std::atomic<std::uint64_t> popTotal = 0ull;
-        std::unique_ptr<int []> result(new int[queueSize]);
-
-        startFlag = false;
-        for (auto & thread : threads)
-        {
-            thread = std::jthread([&]()
-                    {
-                        ++activeThreadCount;
-                        while (!startFlag)
-                            ;
-                        int n = 0;
-                        while (!mpscQueue.empty())
-                        {
-                            if (mpscQueue.pop(n))
-                                popTotal += n;
-                        }
-                        --activeThreadCount;
-                    });
-        }
-        while (activeThreadCount != numThreads)
-            ;
-        startFlag = true;
-        while (activeThreadCount != 0)
-            ;
-        std::cout << "pop total = " << popTotal << "\n";
-    }
-*/
 
     set_cpu_affinity(mainCpu);
-
-    enqueue_test();
 
 //    work_contract_latency_test<bcpp::synchronization_mode::non_blocking>();
 
@@ -580,7 +511,7 @@ int main
     )
     {
         std::cout << "\n\nTask " << title << ", average task duration is  " << get_task_duration(task).count() << " ns\n";
-/*
+
         std::cout << "Boost lockfree::queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             boost_test(i, test_duration, task);
@@ -588,18 +519,14 @@ int main
         std::cout << "TBB concurrent_queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             tbb_test(i, test_duration, task);
-*/
-/*
-        std::cout << "Work Contract (blocking)\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
-        for (auto i = 2; i <= max_threads; ++i)
-            work_contract_test<bcpp::synchronization_mode::blocking>(i, test_duration, task);
-*/
 
-/*
+    //    std::cout << "Work Contract (blocking)\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
+    //    for (auto i = 2; i <= max_threads; ++i)
+    //        work_contract_test<bcpp::synchronization_mode::blocking>(i, test_duration, task);
+
         std::cout << "Strauss mpmc_queue: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             mpmc_queue_test(i, test_duration, task);
-*/
 
         std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2ull; i <= max_threads; ++i)

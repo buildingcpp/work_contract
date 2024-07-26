@@ -1,7 +1,9 @@
-cmake_minimum_required(VERSION 3.16.3)
+cmake_minimum_required(VERSION 3.5)
 set(CMAKE_CXX_STANDARD 20)
 
 project(work_contract)
+
+option(WORK_CONTRACT_BUILD_BENCHMARK "build work contract benchmarks" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
@@ -22,9 +24,16 @@ else()
         -g
         -march=native
         -fPIE
+        -Wno-changes-meaning
         #-Wall
     )
 endif()
+
+
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+link_directories(${CMAKE_BINARY_DIR}/lib)
 
 message("Build Type = ${CMAKE_BUILD_TYPE}")
 
@@ -52,21 +61,21 @@ if ("${_scripts_src_path}" STREQUAL "")
 endif()
 
 include("${_scripts_src_path}/cmake/fetch_dependencies.cmake")
-
 fetch_dependency("https://github.com/buildingcpp/include.git;main")
 
-fetch_dependency("https://github.com/cameron314/concurrentqueue.git;master")
-fetch_dependency("https://github.com/wjakob/tbb.git;master")
-fetch_dependency("https://github.com/boostorg/lockfree.git;master")
-fetch_dependency("https://github.com/erez-strauss/lockfree_mpmc_queue.git;master")
-
+if (WORK_CONTRACT_BUILD_BENCHMARK)
+    fetch_dependency("https://github.com/cameron314/concurrentqueue.git;master")
+    fetch_dependency("https://github.com/boostorg/lockfree.git;master")
+    fetch_dependency("https://github.com/erez-strauss/lockfree_mpmc_queue.git;master")
+    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
+    set(TBB_BUILD_TESTS OFF)
+    set(TBB_BUILD_SHARED OFF)
+    set(TBB_BUILD_STATIC ON)
+    fetch_dependency("https://github.com/wjakob/tbb.git;master")
+endif(WORK_CONTRACT_BUILD_BENCHMARK)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin/${PROJECT_NAME})
 set(_${PROJECT_NAME}_dir ${CMAKE_CURRENT_SOURCE_DIR} CACHE STRING "")
-
-set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 add_subdirectory(src)
 

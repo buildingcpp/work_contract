@@ -1,5 +1,7 @@
 add_executable(benchmark main.cpp enqueue_test.cpp)
 
+target_compile_options(benchmark PRIVATE ${TBB_CXX_STD_FLAG})
+
 target_include_directories(benchmark
 PRIVATE
     ${_concurrentqueue_src_path}
@@ -11,6 +13,6 @@ PRIVATE
 target_link_libraries(benchmark 
 PRIVATE
     work_contract
+    tbb_static
 )
 
-target_compile_options(benchmark PRIVATE ${TBB_CXX_STD_FLAG})
