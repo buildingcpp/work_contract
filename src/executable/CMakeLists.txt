@@ -1,4 +1,6 @@
 if (WORK_CONTRACT_BUILD_BENCHMARK)
     add_subdirectory(benchmark)
     add_subdirectory(signal_tree_benchmark)
+    add_subdirectory(1_basic_usage)
+    add_subdirectory(2_multi_invocation)
 endif(WORK_CONTRACT_BUILD_BENCHMARK)

@@ -7,11 +7,27 @@ bcpp::work_contract_tree<T>::work_contract_tree
 (
     std::uint64_t capacity
 ):
-    contracts_(available_.capacity()),
-    releaseToken_(available_.capacity())
+    subTreeCount_(minimum_power_of_two((capacity + (signal_tree_type::capacity - 1)) / signal_tree_type::capacity)),
+    subTreeMask_(subTreeCount_ - 1),
+    subTreeShift_(minimum_bit_count(subTreeCount_ - 1)),
+    signalTree_(subTreeCount_),
+    available_(subTreeCount_),
+    contracts_(subTreeCount_ * signal_tree_type::capacity),
+    releaseToken_(subTreeCount_ * signal_tree_type::capacity)
 {
-    for (auto i = 0ull; i < available_.capacity(); ++i)
-        available_.set(i);
+    for (auto & subtree : available_)
+        for (auto i = 0ull; i < signal_tree_type::capacity; ++i)
+            subtree.set(i);
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
+bcpp::work_contract_tree<T>::work_contract_tree
+(
+):
+    work_contract_tree(default_capacity)
+{
 }
 
 
@@ -45,14 +61,18 @@ template <bcpp::synchronization_mode T>
 void bcpp::work_contract_tree<T>::erase_contract
 (
     // after contract's release function is invoked, clean up anything related to the contract
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     auto & contract = contracts_[contractId];
     contract.work_ = nullptr;
     contract.release_ = nullptr;
-    releaseToken_[contractId] = {};
-    available_.set(contractId);
+    if (auto releaseToken = std::exchange(releaseToken_[contractId], nullptr); releaseToken)
+        releaseToken->orphan(); // mark as invalid
+
+    auto signalIndex = (contractId % signal_tree_capacity);
+    auto treeIndex = (contractId / signal_tree_capacity);
+    available_[treeIndex].set(signalIndex);
 }
 
 
@@ -62,7 +82,7 @@ void bcpp::work_contract_tree<T>::process_release
 (
     // invoke the contract's release function.  use auto class to ensure
     // erasure of contract in the event of exceptions in the release function.
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     auto_erase_contract autoEraseContract(contractId, *this);

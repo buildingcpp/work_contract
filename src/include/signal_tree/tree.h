@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./level.h"
+#include "./signal_index.h"
 
 
 namespace bcpp
@@ -8,7 +9,37 @@ namespace bcpp
 
     namespace implementation::signal_tree
     {
-    
+
+        //============================================================================= 
+        template <std::uint64_t total_counters, std::uint64_t bits_per_counter>
+        struct default_selector
+        {
+            inline auto operator()
+            (
+                // default select will select which ever child is non zero, or if both
+                // children are non zero, prefer the child indicated by the bias flag.
+                std::uint64_t biasFlags,
+                std::uint64_t counters
+            ) const noexcept -> signal_index
+            {
+                if constexpr (total_counters == 1)
+                {
+                    return 0;
+                }
+                else
+                {
+                    static auto constexpr counters_per_half = (total_counters / 2);
+                    static auto constexpr bits_per_half = (counters_per_half * bits_per_counter);
+                    static auto constexpr right_bit_mask = ((1ull << bits_per_half) - 1);
+                    static auto constexpr left_bit_mask = (right_bit_mask << bits_per_half);
+                    auto chooseRight = (((biasFlags & 0x8000000000000000ull) && (counters & right_bit_mask)) || ((counters & left_bit_mask) == 0ull));
+                    counters >>= (chooseRight) ? 0 : bits_per_half;
+                    return ((chooseRight) ? counters_per_half : 0) + default_selector<counters_per_half, bits_per_counter>()(biasFlags << 1, counters & right_bit_mask);
+                }
+            }
+        };
+
+
         //=====================================================================
         // TODO: hack.  write better when have time
         template <std::uint64_t N = 64>
@@ -17,10 +48,11 @@ namespace bcpp
             std::uint64_t requested
         ) 
         {
-            constexpr std::array<std::uint64_t, 13> valid
+            constexpr std::array<std::uint64_t, 14> valid
                 {
                     64,
                     64 << 3,  
+                    64 << 5,  
                     64 << 7, 
                     64 << 9,  
                     64 << 11,
@@ -41,133 +73,100 @@ namespace bcpp
     
 
         //=============================================================================
-        template <std::uint64_t N, std::uint64_t N1 = 1024>
-        requires (std::popcount(N) == 1)
+        template <std::uint64_t N>
         class tree
         {
+        private:
+
+            using root_level_traits = level_traits<1, N>;
+            using root_level = level<root_level_traits>;
+            
         public:
 
-            static auto constexpr max_capacity = N;
-            static auto constexpr sub_tree_count = N1;
-            static auto constexpr sub_tree_capacity = select_tree_size(max_capacity / sub_tree_count);
+            static auto constexpr capacity = N;
 
-            static std::uint64_t constexpr capacity() noexcept;
+            static_assert(select_tree_size(capacity) == capacity, "invalid signal_tree capacity");
 
             bool set
             (
-                std::uint64_t
+                signal_index
             ) noexcept;
 
             bool empty() const noexcept;
 
-            std::uint64_t select() noexcept;
+            template <template <std::uint64_t, std::uint64_t> class = default_selector>
+            signal_index select() noexcept;
 
-            std::uint64_t select
+            template <template <std::uint64_t, std::uint64_t> class = default_selector>
+            signal_index select
             (
                 std::uint64_t
             ) noexcept;
 
-        protected:
+        private:
 
-            using root_level_traits = level_traits<1, sub_tree_capacity>;
-            using root_level = level<root_level_traits>;
-
-            using root_level_array = std::array<root_level, sub_tree_count>;
-
-            root_level_array subTrees_;
+            root_level rootLevel_;
 
         }; // class tree
 
     } // namespace bcpp::implementation::signal_tree
 
 
-    template <std::size_t N0, std::size_t N1 = 1024> 
-    using signal_tree = implementation::signal_tree::tree<N0, N1>;
+    template <std::size_t N> 
+    using signal_tree = implementation::signal_tree::tree<implementation::signal_tree::select_tree_size(N)>;
 
 } // namespace bcpp
 
 
 //=============================================================================
-template <std::size_t N, std::size_t N1>
-requires (std::popcount(N) == 1)
-inline std::uint64_t constexpr bcpp::implementation::signal_tree::tree<N, N1>::capacity
-(
-) noexcept
-{
-    return sub_tree_capacity * sub_tree_count;
-}
-
-
-//=============================================================================
-template <std::size_t N, std::size_t N1>
-requires (std::popcount(N) == 1)
-inline bool bcpp::implementation::signal_tree::tree<N, N1>::set
+template <std::size_t N>
+inline bool bcpp::implementation::signal_tree::tree<N>::set
 (
     // set the leaf node associated with the index to 1
-    std::uint64_t signalIndex
+    signal_index signalIndex
 ) noexcept 
 {
-    auto treeIndex = signalIndex / sub_tree_capacity;
-    return subTrees_[treeIndex].set(signalIndex % sub_tree_capacity);
+    return rootLevel_.set(signalIndex);
 }
 
 
 //=============================================================================
-template <std::size_t N, std::size_t N1>
-requires (std::popcount(N) == 1)
-inline bool bcpp::implementation::signal_tree::tree<N, N1>::empty
+template <std::size_t N>
+inline bool bcpp::implementation::signal_tree::tree<N>::empty
 (
     // returns true if no leaf nodes are 'set' (root count is zero)
     // returns false otherwise
 ) const noexcept 
 {
-    for (auto const & tree : subTrees_)
-        if (!tree.empty())
-            return false;
-    return true;
+    return rootLevel_.empty();
 }
 
 
 //=============================================================================
-template <std::size_t N, std::size_t N1>
-requires (std::popcount(N) == 1)
-inline auto bcpp::implementation::signal_tree::tree<N, N1>::select 
+template <std::size_t N>
+template <template <std::uint64_t, std::uint64_t> class select_function>
+inline auto bcpp::implementation::signal_tree::tree<N>::select 
 (
     // select and return the index of a leaf which is 'set'
     // return invalid_signal_index if no leaf is 'set' (empty tree)
-) noexcept -> std::uint64_t
+) noexcept -> signal_index
 {
     static thread_local std::uint64_t tls_inclinationFlags;
-    auto result = select(tls_inclinationFlags++);
+    auto result = select<select_function>(tls_inclinationFlags++);
     tls_inclinationFlags = (result + 1);
     return result;
 }
 
 
 //=============================================================================
-template <std::size_t N, std::size_t N1>
-requires (std::popcount(N) == 1)
-inline auto bcpp::implementation::signal_tree::tree<N, N1>::select 
+template <std::size_t N>
+template <template <std::uint64_t, std::uint64_t> class select_function>
+inline auto bcpp::implementation::signal_tree::tree<N>::select 
 (
     // select and return the index of a leaf which is 'set'
     // return invalid_signal_index if no leaf is 'set' (empty tree)
     std::uint64_t bias
-) noexcept -> std::uint64_t
+) noexcept -> signal_index
 {
-    bias %= capacity();
-    auto treeIndex = bias / sub_tree_capacity;
-    static auto constexpr bias_bits_consumed_by_tree_index = minimum_bit_count(sub_tree_capacity) - 1;
-    static auto constexpr shift_to_remove_tree_index = (64 - bias_bits_consumed_by_tree_index);
-    bias <<= shift_to_remove_tree_index;
-
-    for (auto i = 0ull; i < sub_tree_count; ++i)
-    {
-        auto & tree = subTrees_[treeIndex];
-        auto signalIndex = tree.select(bias);
-        if (signalIndex != invalid_signal_index)
-            return (treeIndex * sub_tree_capacity) + signalIndex;
-        treeIndex++;
-        treeIndex %= sub_tree_count;
-    }
-    return invalid_signal_index;
+    return rootLevel_. template select<select_function>(bias);
 }

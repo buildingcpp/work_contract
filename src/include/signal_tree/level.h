@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./node.h"
+#include "./signal_index.h"
 
 #include <type_traits>
 #include <concepts>
@@ -49,31 +50,34 @@ namespace bcpp::implementation::signal_tree
 
         using node_type = node<node_traits<T::node_capacity>>;
         using child_level_type = child_level<T>::type;
-        using counter_index = std::uint64_t;
         using bias_flags = std::uint64_t;
         using node_index = std::uint64_t;
         
-        static auto constexpr node_capacity = T::node_capacity;
-        static auto constexpr node_count = T::number_of_nodes;
-        static auto constexpr counters_per_node = node_type::number_of_counters;
 
         bool empty() const noexcept requires (root_level_traits<T>);
 
         bool set
         (
-            counter_index
+            signal_index
         ) noexcept;
 
-        counter_index select
+        template <template <std::uint64_t, std::uint64_t> class>
+        signal_index select
         (
             bias_flags
         ) noexcept requires (root_level_traits<T>);
 
     protected:
 
+        static auto constexpr node_capacity = T::node_capacity;
+        static auto constexpr node_count = T::number_of_nodes;
+        static auto constexpr counters_per_node = node_type::number_of_counters;
+        static auto constexpr bits_per_counter = node_type::bits_per_counter;
+
         template <level_traits_concept> friend struct level;
 
-        counter_index select
+        template <template <std::uint64_t, std::uint64_t> class>
+        signal_index select
         (
             bias_flags,
             node_index
@@ -106,53 +110,47 @@ template <bcpp::implementation::signal_tree::level_traits_concept T>
 inline bool bcpp::implementation::signal_tree::level<T>::set
 (
     // increment the counter associated with the specified index (id of a leaf node)
-    std::uint64_t signalIndex
+    signal_index signalIndex
 ) noexcept
 {
-    if constexpr (leaf_level_traits<T>)
+    if constexpr (non_leaf_level_traits<T>)
     {
-        // try to set the leaf and return true on success, false on failure
-        return nodes_[signalIndex / node_capacity].set(signalIndex);
+        if (!childLevel_.set(signalIndex))
+            return false;
     }
-    else
-    {
-        if (childLevel_.set(signalIndex))
-        {
-            nodes_[signalIndex / node_capacity].set(signalIndex);
-            return true;
-        }
-        return false;
-    }
+    return nodes_[signalIndex / node_capacity].set(signalIndex % node_capacity);
 }
 
 
 //=============================================================================
 template <bcpp::implementation::signal_tree::level_traits_concept T>
+template <template <std::uint64_t, std::uint64_t> class select_function>
 inline auto bcpp::implementation::signal_tree::level<T>::select
 (
     // return the index of a counter which is not zero (indicates that one of the leaf nodes
     // represented by this counter is set - a non zero value)
     bias_flags biasFlags
-) noexcept -> counter_index
+) noexcept -> signal_index
 requires (root_level_traits<T>)
 {
-    return select(biasFlags, 0);
+    return select<select_function>(biasFlags, 0);
 }
 
 
 //=============================================================================
 template <bcpp::implementation::signal_tree::level_traits_concept T>
+template <template <std::uint64_t, std::uint64_t> class select_function>
 inline auto bcpp::implementation::signal_tree::level<T>::select
 (
     // return the index of a child counter which is not zero (indicates that one of the leaf nodes
     // represented by this counter is set - a non zero value)
     bias_flags biasFlags,
     node_index nodeIndex
-) noexcept -> counter_index
+) noexcept -> signal_index
 {
     static auto constexpr bias_bits_consumed_to_select_counter = minimum_bit_count(counters_per_node) - 1;
 
-    auto selectedCounter = nodes_[nodeIndex].select(biasFlags);
+    auto selectedCounter = nodes_[nodeIndex]. template select<select_function>(biasFlags);
     biasFlags <<= bias_bits_consumed_to_select_counter;
 
     if constexpr (root_level_traits<T>)
@@ -167,7 +165,7 @@ inline auto bcpp::implementation::signal_tree::level<T>::select
     }
     else
     {
-        auto childSelectedCount = childLevel_.select(biasFlags, selectedCounter + (nodeIndex * counters_per_node));
+        auto childSelectedCount = childLevel_. template select<select_function>(biasFlags, selectedCounter + (nodeIndex * counters_per_node));
         static auto constexpr bias_bits_consumed_to_select_child_counter = minimum_bit_count(child_level_type::node_capacity) - 1;
         return ((selectedCounter << bias_bits_consumed_to_select_child_counter) | childSelectedCount);
     }

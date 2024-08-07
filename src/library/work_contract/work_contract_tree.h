@@ -1,5 +1,7 @@
 #pragma once
 
+#include "./work_contract_id.h"
+
 #include <include/signal_tree.h>
 #include <include/synchronization_mode.h>
 #include <include/non_movable.h>
@@ -12,6 +14,9 @@
 #include <condition_variable>
 #include <functional>
 #include <concepts>
+#include <bit>
+
+#include <iostream>
 
 
 namespace bcpp 
@@ -27,11 +32,50 @@ namespace bcpp
     {
     public:
 
+        //============================================================================= 
+        template <std::uint64_t total_counters, std::uint64_t bits_per_counter>
+        struct largest_child_selector
+        {
+            inline auto operator()
+            (
+                std::uint64_t biasFlags,
+                std::uint64_t counters
+            ) const noexcept -> signal_index
+            {
+                if constexpr (bits_per_counter == 1)
+                {
+                    return (counters > 0) ? std::countl_zero(counters) : ~0ull;
+                }
+                else
+                {
+                    // this routine is only called to select new contract ids.  but we could improve speed here
+                    // with a expression fold as total counters is never more than 8 and often 4 or 2.
+                    auto selected = ~0ull;
+                    auto max = 0ull;
+                    static auto constexpr counter_mask = ((1ull << bits_per_counter) - 1);
+                    for (auto i = 0ull; i < total_counters; ++i)
+                    {
+                        if ((counters & counter_mask) > max)
+                        {
+                            max = (counters & counter_mask);
+                            selected = i;
+                        }
+                        counters >>= bits_per_counter;
+                    }
+                    return selected;
+                }
+            }
+        };
+
         static auto constexpr mode = T;
         using work_contract_type = work_contract<mode>;
 
+        static auto constexpr default_capacity = 512;
+
         class release_token;
         class work_contract_token;
+
+        work_contract_tree();
 
         work_contract_tree
         (
@@ -100,50 +144,62 @@ namespace bcpp
 
         void schedule
         (
-            std::uint64_t 
+            work_contract_id 
         );
 
         void release
         (
-            std::uint64_t 
+            work_contract_id 
         );        
         
         template <std::size_t>
         void set_contract_flag
         (
-            std::uint64_t 
+            work_contract_id 
         );
 
         std::size_t process_contract();
 
-        void process_release(std::uint64_t);
+        void process_release(work_contract_id);
 
-        void process_contract(std::uint64_t);
+        void process_contract(work_contract_id);
 
         void clear_execute_flag
         (
-            std::uint64_t
+            work_contract_id
         );
 
         void erase_contract
         (
-            std::uint64_t
+            work_contract_id
         );
 
-        std::vector<contract>                           contracts_;
+        work_contract_id get_available_contract();
 
-        std::vector<std::shared_ptr<release_token>>     releaseToken_;
+        using signal_tree_type = signal_tree<512>;
+        static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
+        static auto constexpr bias_shift = (64 - minimum_bit_count(signal_tree_capacity - 1)); 
 
-        std::mutex                                      mutex_;
+        std::uint64_t                                                   subTreeCount_;
 
-        std::atomic<bool>                               stopped_{false};
+        std::uint64_t                                                   subTreeMask_;
 
-        static auto constexpr subtree_count = 512;
-        static auto constexpr signal_capacity = 32768;
+        std::uint64_t                                                   subTreeShift_;
 
-        signal_tree<signal_capacity, subtree_count>                      tree_;
+        std::vector<contract>                                           contracts_;
 
-        signal_tree<signal_capacity, subtree_count>                      available_;
+        std::vector<std::shared_ptr<release_token>>                     releaseToken_;
+
+        std::mutex                                                      mutex_;
+
+        std::atomic<bool>                                               stopped_{false};
+
+        std::vector<signal_tree_type>                                   signalTree_;
+
+        std::vector<signal_tree_type>                                   available_;
+
+
+        static thread_local std::uint64_t tls_biasFlags;
 
         struct 
         {
@@ -158,13 +214,16 @@ namespace bcpp
 
             bool wait(work_contract_tree const * owner) const
             {
-                if (owner->tree_.empty())
+                return false;  // TODO: restore 
+                /*
+                if (owner->signalTree_.empty())
                 {
                     std::unique_lock uniqueLock(mutex_);
-                    conditionVariable_.wait(uniqueLock, [owner](){return ((!owner->tree_.empty()) || (owner->stopped_));});
+                    conditionVariable_.wait(uniqueLock, [owner](){return ((!owner->signalTree_.empty()) || (owner->stopped_));});
                     return (!owner->stopped_);
                 }
                 return true;
+                */
             }
 
             bool wait_for
@@ -172,19 +231,27 @@ namespace bcpp
                 work_contract_tree const * owner,
                 std::chrono::nanoseconds duration
             ) const
-            {
-                if (owner->tree_.empty())
+            {                
+                return false;  // TODO: restore 
+                /*
+                if (owner->signalTree_.empty())
                 {
                     std::unique_lock uniqueLock(mutex_);
-                    auto waitSuccess = conditionVariable_.wait_for(uniqueLock, duration, [owner]() mutable{return ((!owner->tree_.empty()) || (owner->stopped_));});
+                    auto waitSuccess = conditionVariable_.wait_for(uniqueLock, duration, [owner]() mutable{return ((!owner->signalTree_.empty()) || (owner->stopped_));});
                     return ((!owner->stopped_) && (waitSuccess));
                 }
                 return true;
+                */
             }
 
         } waitableState_;
 
     }; // class work_contract_tree
+
+
+    template <synchronization_mode T>
+    thread_local std::uint64_t work_contract_tree<T>::tls_biasFlags{0};
+
 
 
     template <synchronization_mode T>
@@ -207,11 +274,12 @@ namespace bcpp
         non_copyable
     {
     public:
-        work_contract_token(std::uint64_t, work_contract_tree &);
+        work_contract_token(work_contract_id, work_contract_tree &);
         ~work_contract_token();
         void schedule();
+        void release();
     private:
-        std::uint64_t               contractId_;
+        work_contract_id            contractId_{~0ull};
         work_contract_tree<T> &     owner_;
     };
 
@@ -235,20 +303,45 @@ inline auto bcpp::work_contract_tree<T>::create_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
+inline auto bcpp::work_contract_tree<T>::get_available_contract
+(
+) -> work_contract_id
+{
+    auto biasFlags = tls_biasFlags++;
+    auto subTreeIndex = biasFlags;
+    biasFlags >>= subTreeShift_;
+    biasFlags <<= bias_shift;
+
+    for (auto i = 0; i < available_.size(); ++i)
+    {
+        if (auto signalId = available_[subTreeIndex & subTreeMask_].select<largest_child_selector>(biasFlags); signalId != ~0ull)
+        {
+            auto workContractId = (subTreeIndex & subTreeMask_) * signal_tree_capacity;
+            workContractId += signalId;
+            return workContractId;
+        }
+        ++subTreeIndex;
+    }
+    return {}; 
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
 inline auto bcpp::work_contract_tree<T>::create_contract
 (
     std::invocable<work_contract_token &> auto && workFunction,
     std::invocable auto && releaseFunction,
     work_contract_type::initial_state initialState
 ) -> work_contract_type
-{
-    if (auto contractId = available_.select(); contractId != invalid_signal_index)
+{    
+    if (auto workContractId = get_available_contract(); workContractId != ~0ull)
     {
-        auto & contract = contracts_[contractId];
+        auto & contract = contracts_[workContractId];
         contract.flags_ = 0;
         contract.work_ = std::forward<decltype(workFunction)>(workFunction); 
         contract.release_ = std::forward<decltype(releaseFunction)>(releaseFunction); 
-        return {this, releaseToken_[contractId] = std::make_shared<release_token>(this), contractId, initialState};
+        return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
     }
     return {};
 }
@@ -275,13 +368,13 @@ inline auto bcpp::work_contract_tree<T>::create_contract
     work_contract_type::initial_state initialState
 ) -> work_contract_type
 {
-    if (auto contractId = available_.select(); contractId != invalid_signal_index)
+    if (auto workContractId = get_available_contract(); workContractId != ~0ull)
     {
-        auto & contract = contracts_[contractId];
+        auto & contract = contracts_[workContractId];
         contract.flags_ = 0;
         contract.work_ = [work = std::forward<decltype(workFunction)>(workFunction)](auto &) mutable{work();}; 
         contract.release_ = std::forward<decltype(releaseFunction)>(releaseFunction);
-        return {this, releaseToken_[contractId] = std::make_shared<release_token>(this), contractId, initialState};
+        return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
     }
     return {};
 }
@@ -291,7 +384,7 @@ inline auto bcpp::work_contract_tree<T>::create_contract
 template <bcpp::synchronization_mode T>
 inline void bcpp::work_contract_tree<T>::release
 (
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     set_contract_flag<contract::release_flag | contract::schedule_flag>(contractId);
@@ -302,7 +395,7 @@ inline void bcpp::work_contract_tree<T>::release
 template <bcpp::synchronization_mode T>
 inline void bcpp::work_contract_tree<T>::schedule
 (
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     set_contract_flag<contract::schedule_flag>(contractId);
@@ -314,13 +407,15 @@ template <bcpp::synchronization_mode T>
 template <std::size_t flags_to_set>
 inline void bcpp::work_contract_tree<T>::set_contract_flag
 (
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     static auto constexpr flags_mask = (contract::execute_flag | contract::schedule_flag);
     if ((contracts_[contractId].flags_.fetch_or(flags_to_set) & flags_mask) == 0)
     {
-        tree_.set(contractId);
+        auto signalIndex = contractId % signal_tree_capacity;
+        auto treeIndex = contractId / signal_tree_capacity;
+        signalTree_[treeIndex].set(signalIndex);
         if constexpr (mode == synchronization_mode::blocking)
         {
             // this should be done more graceful but for now ...
@@ -341,10 +436,23 @@ inline bool bcpp::work_contract_tree<T>::execute_next_contract
         if (!waitableState_.wait(this))// this should be done more graceful but for now ..
             return false;
     }
-    if (auto contractId = tree_.select(); contractId != invalid_signal_index)
+
+    auto biasFlags = tls_biasFlags++;
+    auto subTreeIndex = (biasFlags & subTreeMask_);
+    biasFlags >>= subTreeShift_;
+    biasFlags <<= bias_shift;
+
+    for (auto i = 0; i < signalTree_.size(); ++i)
     {
-        process_contract(contractId);
-        return true;
+        if (auto signalIndex = signalTree_[subTreeIndex & subTreeMask_].select(biasFlags); signalIndex != invalid_signal_index)
+        {
+            work_contract_id workContractId((subTreeIndex & subTreeMask_) * signal_tree_capacity);
+            workContractId |= signalIndex;
+         //   tls_biasFlags = ((signalIndex) << subTreeShift_) | ((subTreeIndex + 1) & subTreeMask_);//(workContractId + 1);
+            process_contract(work_contract_id(workContractId));
+            return true;
+        }
+        ++subTreeIndex;
     }
     return false;
 }
@@ -360,10 +468,22 @@ inline bool bcpp::work_contract_tree<T>::execute_next_contract
 {
     if (waitableState_.wait_for(this, duration))    // this should be done more graceful but for now ..
     {
-        if (auto contractId = tree_.select(); contractId != invalid_signal_index)
+        auto biasFlags = tls_biasFlags++;
+        auto subTreeIndex = (biasFlags & subTreeMask_);
+        biasFlags >>= subTreeShift_;
+        biasFlags <<= bias_shift;
+
+        for (auto i = 0; i < signalTree_.size(); ++i)
         {
-            process_contract(contractId);
-            return true;
+            if (auto signalIndex = signalTree_[subTreeIndex & subTreeMask_].select(biasFlags); signalIndex != invalid_signal_index)
+            {
+                work_contract_id workContractId((subTreeIndex & subTreeMask_) * signal_tree_capacity);
+                workContractId |= signalIndex;
+            //    tls_biasFlags = (workContractId + 1);
+                process_contract(workContractId);
+                return true;
+            }
+            ++subTreeIndex;
         }
     }
     return false;
@@ -374,11 +494,15 @@ inline bool bcpp::work_contract_tree<T>::execute_next_contract
 template <bcpp::synchronization_mode T>
 inline void bcpp::work_contract_tree<T>::clear_execute_flag
 (
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     if (((contracts_[contractId].flags_ -= contract::execute_flag) & contract::schedule_flag) == contract::schedule_flag)
-        tree_.set(contractId);
+    {
+        auto signalIndex = (contractId % signal_tree_capacity);
+        auto treeIndex = (contractId / signal_tree_capacity);
+        signalTree_[treeIndex].set(signalIndex);
+    }
 }
 
 
@@ -386,7 +510,7 @@ inline void bcpp::work_contract_tree<T>::clear_execute_flag
 template <bcpp::synchronization_mode T>
 inline void bcpp::work_contract_tree<T>::process_contract
 (
-    std::uint64_t contractId
+    work_contract_id contractId
 )
 {
     auto & contract = contracts_[contractId];
@@ -406,7 +530,7 @@ inline void bcpp::work_contract_tree<T>::process_contract
 template <bcpp::synchronization_mode T>
 inline bcpp::work_contract_tree<T>::work_contract_token::work_contract_token 
 (
-    std::uint64_t contractId,
+    work_contract_id contractId,
     work_contract_tree<T> & owner
 ):
     contractId_(contractId),
@@ -432,4 +556,14 @@ inline void bcpp::work_contract_tree<T>::work_contract_token::schedule
 )
 {
     owner_.schedule(contractId_);
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
+inline void bcpp::work_contract_tree<T>::work_contract_token::release
+(
+)
+{
+    owner_.release(contractId_);
 }

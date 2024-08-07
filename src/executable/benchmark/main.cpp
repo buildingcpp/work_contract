@@ -372,12 +372,12 @@ auto work_contract_test
     using work_contract_type = bcpp::work_contract<T>;
 
     // create work contracts and schedule all of them (like queuing in a work queue)
-    auto workContractTree = std::make_unique<work_contract_tree_type>(max_tasks);
+    work_contract_tree_type workContractTree(1 << 20);//max_tasks);
     std::vector<work_contract_type> workContracts(max_tasks);
 
     for (auto i = 0; i < max_tasks; ++i)
     {
-        workContracts[i] = workContractTree->create_contract(
+        workContracts[i] = workContractTree.create_contract(
                 [&, contractId = i](auto & token)
                 {
                     task();                             // execute the task
@@ -392,9 +392,9 @@ auto work_contract_test
             [&]()
             {                        
             //    if constexpr (T == bcpp::synchronization_mode::blocking)
-            //        workContractTree->execute_next_contract(std::chrono::milliseconds(1));
+            //        workContractTree.execute_next_contract(std::chrono::milliseconds(1));
             //    else
-                    workContractTree->execute_next_contract();
+                    workContractTree.execute_next_contract();
             });
     execute_test();
 }
@@ -499,7 +499,6 @@ int main
     char const **
 )
 {
-
     set_cpu_affinity(mainCpu);
 
 //    work_contract_latency_test<bcpp::synchronization_mode::non_blocking>();
@@ -511,7 +510,7 @@ int main
     )
     {
         std::cout << "\n\nTask " << title << ", average task duration is  " << get_task_duration(task).count() << " ns\n";
-
+/*
         std::cout << "Boost lockfree::queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             boost_test(i, test_duration, task);
@@ -527,7 +526,7 @@ int main
         std::cout << "Strauss mpmc_queue: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             mpmc_queue_test(i, test_duration, task);
-
+*/
         std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2ull; i <= max_threads; ++i)
             work_contract_test<bcpp::synchronization_mode::non_blocking>(i, test_duration, task);

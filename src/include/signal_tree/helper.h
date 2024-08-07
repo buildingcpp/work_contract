@@ -9,9 +9,9 @@ namespace bcpp
 {
 
     //=========================================================================
-    static inline consteval auto minimum_bit_count
+    static inline constexpr auto minimum_bit_count
     (
-        std::integral auto value
+        std::unsigned_integral auto value
     )
     {
         return ((sizeof(value) * 8) - std::countl_zero(value));
@@ -19,9 +19,19 @@ namespace bcpp
 
 
     //=========================================================================
+    static inline constexpr auto minimum_power_of_two
+    (
+        std::unsigned_integral auto value
+    )
+    {
+        return (1ull << minimum_bit_count(value - 1));
+    }
+
+
+    //=========================================================================
     static inline consteval auto is_power_of_two
     (
-        std::integral auto value
+        std::unsigned_integral auto value
     )
     {
         return (std::popcount(value) == 1);
@@ -61,6 +71,4 @@ namespace bcpp
     // these will be type rich types in the near future
     using tree_index = std::uint64_t;
 
-    static auto constexpr invalid_signal_index = ~0ull;
-    
 } // namespace bcpp

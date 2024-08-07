@@ -1,11 +1,13 @@
 #pragma once
 
 #include "./helper.h"
+#include "./signal_index.h"
 
 #include <bit>
 #include <cstdint>
 #include <atomic>
 #include <array>
+#include <functional>
 
 
 namespace bcpp::implementation::signal_tree
@@ -20,7 +22,6 @@ namespace bcpp::implementation::signal_tree
         static auto constexpr counter_capacity = capacity / number_of_counters;
         static auto constexpr bits_per_counter = minimum_bit_count(counter_capacity);
     };
-
 
     template <typename T> concept node_traits_concept = std::is_same_v<T, node_traits<T::capacity>>;
     template <typename T> concept leaf_node_traits = ((node_traits_concept<T>) && (T::capacity == 64));
@@ -40,33 +41,35 @@ namespace bcpp::implementation::signal_tree
         static auto constexpr counter_capacity = T::counter_capacity;
         static auto constexpr bits_per_counter = T::bits_per_counter;
         static auto constexpr counter_mask = (1ull << bits_per_counter) - 1;
-
+        
         using child_type = node<node_traits<capacity / number_of_counters>>;
-        using item_index = std::uint64_t;
-        using counter_index = std::uint64_t;
         using bias_flags = std::uint64_t;
         using value_type = std::uint64_t;
 
+        class counter_index
+        {
+        public:
+            using value_type = std::uint64_t;
+            counter_index(signal_index signalIndex):value_(signalIndex / counter_capacity){}
+            value_type value() const{return value_;}
+        private:
+            value_type const value_;
+        };
+
         bool set
         (
-            item_index
-        ) noexcept;
-
-        item_index select
-        (
-            bias_flags
+            counter_index
         ) noexcept;
 
         bool empty() const noexcept;
 
-    protected:
-
-        template <std::uint64_t>
-        item_index select
+        template <template <std::uint64_t, std::uint64_t> class>
+        signal_index select
         (
-            bias_flags,
-            value_type
+            bias_flags
         ) noexcept;
+
+    protected:
 
         std::atomic<value_type> value_{0};
 
@@ -77,12 +80,6 @@ namespace bcpp::implementation::signal_tree
                         return {(1ull << ((number_of_counters - N - 1) * bits_per_counter)) ...};
                     }(std::make_index_sequence<number_of_counters>())
                 };
-
-        std::size_t get_counter_arity() const noexcept
-        {
-            return number_of_counters;
-        }
-
     };
 
 } // namespace bcpp::implementation::signal_tree
@@ -92,17 +89,20 @@ namespace bcpp::implementation::signal_tree
 template <bcpp::implementation::signal_tree::node_traits_concept T>
 inline bool bcpp::implementation::signal_tree::node<T>::set
 (
-    item_index signalIndex
+    counter_index counterIndex
 ) noexcept
 {
     if constexpr (non_leaf_node_traits<T>)
     {
-        value_ += addend[(signalIndex % capacity) / counter_capacity];
+        // non-leaf node.  increment correct sub counter
+        value_ += addend[counterIndex.value()];
         return true;
     }
     else
     {
-        auto bit = 0x8000000000000000ull >> signalIndex;
+        // leaf node. counters are 1 bit in size
+        // set correct counter bit and return true if not already set
+        auto bit = 0x8000000000000000ull >> counterIndex.value();
         return ((value_.fetch_or(bit) & bit) == 0); 
     }
 }
@@ -110,68 +110,28 @@ inline bool bcpp::implementation::signal_tree::node<T>::set
 
 //=============================================================================
 template <bcpp::implementation::signal_tree::node_traits_concept T>
+template <template <std::uint64_t, std::uint64_t> class selector>
 inline auto bcpp::implementation::signal_tree::node<T>::select
 (
     bias_flags biasFlags
-) noexcept -> item_index
+) noexcept -> signal_index
 {
-    if constexpr (non_leaf_node_traits<T>)
+    auto expected = value_.load();
+    while (expected)
     {
-        auto expected = value_.load();
-        while (expected)
-        {
-            auto counterIndex = select<number_of_counters>(biasFlags, expected);
+        auto counterIndex = selector<number_of_counters, bits_per_counter>()(biasFlags, expected);
+        if constexpr (non_leaf_node_traits<T>)
+        {            
             if (value_.compare_exchange_strong(expected, expected - addend[counterIndex]))
                 return counterIndex;
         }
-        return invalid_signal_index;  
-    }
-    else
-    {
-        auto expected = value_.load();
-        while (expected)
+        else
         {
-            auto counterIndex = select<64>(biasFlags, expected);
             auto bit = 0x8000000000000000ull >> counterIndex;
             if (expected = value_.fetch_and(~bit); ((expected & bit) == bit))
                 return counterIndex;
         }
-        return invalid_signal_index;
-    }   
-}
-
-       
-//============================================================================= 
-template <bcpp::implementation::signal_tree::node_traits_concept T>
-template <std::uint64_t total_counters>
-inline auto bcpp::implementation::signal_tree::node<T>::select
-(
-    bias_flags biasFlags,
-    value_type counters
-) noexcept -> item_index
-{
-    if constexpr (total_counters == 1)
-    {
-        return 0;
+        int y = 9;
     }
-    else
-    {
-        static auto constexpr counters_per_half = (total_counters / 2);
-        static auto constexpr bits_per_half = (counters_per_half * bits_per_counter);
-        static auto constexpr right_bit_mask = ((1ull << bits_per_half) - 1);
-        static auto constexpr left_bit_mask = (right_bit_mask << bits_per_half);
-        auto chooseRight = (((biasFlags & 0x8000000000000000ull) && (counters & right_bit_mask)) || ((counters & left_bit_mask) == 0));
-        counters >>= (chooseRight) ? 0 : bits_per_half;
-        return ((chooseRight) ? counters_per_half : 0) + select<counters_per_half>(biasFlags << 1, counters & right_bit_mask);
-    }
-}
-
-
-//============================================================================= 
-template <bcpp::implementation::signal_tree::node_traits_concept T>
-inline bool bcpp::implementation::signal_tree::node<T>::empty
-(
-) const noexcept
-{
-    return (value_.load() == 0);
+    return invalid_signal_index; 
 }
