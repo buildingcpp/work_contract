@@ -211,6 +211,10 @@ namespace bcpp::implementation
 
         std::uint64_t                                                   subTreeShift_;
 
+        std::vector<signal_tree_type>                                   signalTree_;
+
+        std::vector<signal_tree_type>                                   available_;
+
         std::vector<contract>                                           contracts_;
 
         std::vector<std::function<void()>>                              release_;
@@ -222,10 +226,6 @@ namespace bcpp::implementation
         std::mutex                                                      mutex_;
 
         std::atomic<bool>                                               stopped_{false};
-
-        std::vector<signal_tree_type>                                   signalTree_;
-
-        std::vector<signal_tree_type>                                   available_;
 
 
         static thread_local std::uint64_t tls_biasFlags;

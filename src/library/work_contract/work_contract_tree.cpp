@@ -69,7 +69,7 @@ auto bcpp::implementation::work_contract_tree<T>::get_available_contract
     biasFlags >>= subTreeShift_;
     biasFlags <<= bias_shift;
 
-    for (auto i = 0; i < available_.size(); ++i)
+    for (auto i = 0ull; i < available_.size(); ++i)
     {
         if (auto signalId = available_[subTreeIndex & subTreeMask_].select<largest_child_selector>(biasFlags); signalId != ~0ull)
         {
