@@ -550,7 +550,7 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
     biasFlags >>= subTreeShift_; // these two shifts should be combined
     biasFlags <<= bias_shift;
 
-    for (auto i = 0; i < signalTree_.size(); ++i)
+    for (auto i = 0ull; i < signalTree_.size(); ++i)
     {
         if (auto signalIndex = signalTree_[subTreeIndex].select(biasFlags); signalIndex != invalid_signal_index)
         {
