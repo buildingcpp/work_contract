@@ -4,11 +4,6 @@
 #include <thread>
 
 
-static auto constexpr mode = bcpp::synchronization_mode::non_blocking;
-using work_contract_tree = bcpp::work_contract_tree<mode>;
-using work_contract = bcpp::work_contract<mode>;
-
-
 //=============================================================================
 void example_work
 (
@@ -20,25 +15,18 @@ void example_work
 {
     std::cout << "===============================\nexample_work:\n";
     // create work contract tree
-    work_contract_tree workContractTree;
+    bcpp::work_contract_tree workContractTree;
 
     // create async worker thread to service scheduled contracts
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractTree.execute_next_contract();});
 
     // create a work contract
-    std::atomic<bool> done{false};
-    auto workFunction = [&](auto & self){std::cout << "work invoked\n"; done = true;};
-    auto workContract = workContractTree.create_contract(workFunction);
-
+    auto workContract = workContractTree.create_contract([&](auto & wcToken){std::cout << "work invoked\n"; wcToken.release();});
     workContract.schedule(); // schedule the contract
 
     // wait until contract has been invoked
-    while (!done)
+    while (workContract)
         ;
-
-    // stop the worker thread
-    workerThread.request_stop();
-    workerThread.join();
 }
 
 
@@ -55,15 +43,15 @@ void example_release
     std::cout << "===============================\nexample_release:\n";
 
     // create work contract tree
-    work_contract_tree workContractTree;
+    bcpp::work_contract_tree workContractTree;
 
     // create async worker thread
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractTree.execute_next_contract();});
 
     // create a work contract and set initial state to scheduled in the same call
-    auto workFunction = [](auto & self){std::cout << "work invoked\n"; self.release();};
+    auto workFunction = [](auto & contractToken){std::cout << "work invoked\n"; contractToken.release();};
     auto releaseFunction = [](){std::cout << "release invoked\n";};
-    auto workContract = workContractTree.create_contract(workFunction, releaseFunction, work_contract::initial_state::scheduled);
+    auto workContract = workContractTree.create_contract(workFunction, releaseFunction, bcpp::work_contract::initial_state::scheduled);
 
     // wait until contract has been invoked and released
     while (workContract.is_valid())
@@ -88,10 +76,10 @@ void example_redundant_schedule_is_ignored
     std::cout << "===============================\nexample_redundant_schedule_is_ignored:\n";
 
     // create work contract tree
-    work_contract_tree workContractTree;
+    bcpp::work_contract_tree workContractTree;
 
     // create a work contract and set initial state to scheduled in the same call
-    auto workFunction = [n=0](auto & self) mutable{std::cout << "work invocation count = " << ++n << "\n"; self.release();};
+    auto workFunction = [n=0](auto & contractToken) mutable{std::cout << "work invocation count = " << ++n << "\n"; contractToken.release();};
     auto workContract = workContractTree.create_contract(workFunction);
     workContract.schedule();
     workContract.schedule(); // scheduling an already scheduled work contract does nothing

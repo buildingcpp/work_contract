@@ -94,6 +94,7 @@ void print_stats
     auto testDurationInSeconds
 )
 {
+    
     auto [taskTotal, taskMean, taskSd, taskCv] = gather_stats(std::span(taskExecutionCount.data(), taskExecutionCount.size()));
     auto [threadTotal, threadMean, threadSd, threadCv] = gather_stats(std::span(threadExecutionCount.begin(), numThreads));
     std::cout << std::fixed << std::setprecision(3) << taskTotal << "," << (int)((taskTotal / testDurationInSeconds) / numThreads) << "," << taskMean << "," << taskSd << "," << 
@@ -113,6 +114,8 @@ void execute_test
     // stop. take timing.  calculate and print stats.
 )
 {
+    auto numThreads = testThreads.size();
+
     // start test
     auto startTime = std::chrono::system_clock::now();
     startTest = true;
@@ -368,12 +371,9 @@ auto work_contract_test
     std::invocable auto && task
 )
 {
-    using work_contract_tree_type = bcpp::work_contract_tree<T>;
-    using work_contract_type = bcpp::work_contract<T>;
-
     // create work contracts and schedule all of them (like queuing in a work queue)
-    work_contract_tree_type workContractTree(1 << 20);//max_tasks);
-    std::vector<work_contract_type> workContracts(max_tasks);
+    bcpp::work_contract_tree workContractTree(1'000'000);
+    std::vector<bcpp::work_contract> workContracts(max_tasks);
 
     for (auto i = 0; i < max_tasks; ++i)
     {
@@ -383,7 +383,7 @@ auto work_contract_test
                     task();                             // execute the task
                     token.schedule();                   // reschedule this contract (like pushing to back of work queue again)
                     tlsExecutionCount[contractId]++;    // update stats
-                }, work_contract_type::initial_state::scheduled);
+                }, bcpp::work_contract::initial_state::scheduled);
         if (!workContracts[i].is_valid())
             std::cout << "ERROR creating work contract\n";
     }
@@ -434,63 +434,6 @@ std::chrono::nanoseconds get_task_duration
     return std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime) / counter;
 }
 
-/*
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto work_contract_latency_test
-(
-)
-{
-    bcpp::internal::work_contract_tree<T> workContractTree(1024);
-
-    std::vector<std::jthread> threads(1);
-    int i = 0;
-    for (auto & thread : threads)
-    {
-        thread = std::jthread(
-            [&, cpuIndex = i++]
-            (
-                std::stop_token const & stopToken
-            )
-            {
-                set_cpu_affinity(cores[cpuIndex]);
-                while (!stopToken.stop_requested()) 
-                    workContractTree.execute_next_contract();
-            });
-    }
-
-    auto rdtsc = [](){std::uint32_t lo, hi; __asm__ __volatile__ ("rdtsc" : "=a" (lo), "=d" (hi)); return ((std::uint64_t(hi) << 32) | lo);};
-
-    std::atomic<bool> done{false};
-    static auto constexpr num_samples = (1 << 20);
-    std::vector<std::uint64_t> samples(num_samples);
-    auto ret = 0;
-    auto latencyTotal = 0;
-    auto wc = workContractTree.create_contract(
-        [&, time = rdtsc(), sampleCount = 0](auto & token) mutable
-        {
-            latencyTotal += (rdtsc() - time);
-            time = rdtsc();
-            if (sampleCount++ < num_samples)
-                token.schedule();
-            else
-                done = true;
-        }, bcpp::work_contract<T>::initial_state::scheduled);
-
-    while (!done)
-        ;
-    for (auto & thread : threads)
-    {
-        thread.request_stop();
-        thread.join();
-    }
-    std::cout << (latencyTotal / num_samples) << "ns\n";
-
-    auto [total, mean, sd, cv] = gather_stats(std::span(samples.begin() + 1, num_samples - 1));
-    std::cout << "Average latency to detect scheduled work contract is " << (int)(total / num_samples) << " ns, with one std dev = " << sd << "\n";
-}
-*/
-
 
 //=============================================================================
 int main
@@ -501,8 +444,6 @@ int main
 {
     set_cpu_affinity(mainCpu);
 
-//    work_contract_latency_test<bcpp::synchronization_mode::non_blocking>();
-
     auto run_test = []<typename T>
     (
         T task,
@@ -510,7 +451,7 @@ int main
     )
     {
         std::cout << "\n\nTask " << title << ", average task duration is  " << get_task_duration(task).count() << " ns\n";
-/*
+
         std::cout << "Boost lockfree::queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             boost_test(i, test_duration, task);
@@ -526,7 +467,7 @@ int main
         std::cout << "Strauss mpmc_queue: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2; i <= max_threads; ++i)
             mpmc_queue_test(i, test_duration, task);
-*/
+
         std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2ull; i <= max_threads; ++i)
             work_contract_test<bcpp::synchronization_mode::non_blocking>(i, test_duration, task);

@@ -3,7 +3,7 @@
 #include <cstdint>
 
 
-namespace bcpp
+namespace bcpp::implementation
 {
 
     using work_contract_id = std::uint64_t;
@@ -14,4 +14,4 @@ namespace bcpp
         std::uint32_t signalId_;
     };
 */
-} // namespace bcpp
+} // namespace bcpp::implementation

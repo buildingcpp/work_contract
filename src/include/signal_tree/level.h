@@ -44,7 +44,7 @@ namespace bcpp::implementation::signal_tree
 
     //=============================================================================
     template <level_traits_concept T>
-    class alignas(64) level
+    class alignas(64) level final
     {
     public:
 
@@ -53,7 +53,6 @@ namespace bcpp::implementation::signal_tree
         using bias_flags = std::uint64_t;
         using node_index = std::uint64_t;
         
-
         bool empty() const noexcept requires (root_level_traits<T>);
 
         bool set

@@ -32,7 +32,7 @@ namespace bcpp::implementation::signal_tree
     // non leaf nodes ...
     // node is a 64 bit integer which represents two (or more) counters
     template <node_traits_concept T>
-    class alignas(64) node
+    class alignas(64) node final
     {
     public:
 
@@ -131,7 +131,6 @@ inline auto bcpp::implementation::signal_tree::node<T>::select
             if (expected = value_.fetch_and(~bit); ((expected & bit) == bit))
                 return counterIndex;
         }
-        int y = 9;
     }
     return invalid_signal_index; 
 }

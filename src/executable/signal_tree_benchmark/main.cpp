@@ -56,7 +56,7 @@ int main
 
     set_cpu_affinity(mainCpu);
 
-    for (auto num_threads = 1ull; num_threads <= 16; num_threads++)
+    for (auto num_threads = 1ull; num_threads <= 1; num_threads++)
     {
         using signal_tree_type = bcpp::signal_tree<max_signal_count>;
         auto signalTree = std::make_unique<signal_tree_type>();

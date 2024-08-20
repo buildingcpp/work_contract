@@ -1,4 +1,4 @@
-add_executable(benchmark main.cpp enqueue_test.cpp)
+add_executable(benchmark main.cpp)
 
 target_compile_options(benchmark PRIVATE ${TBB_CXX_STD_FLAG})
 

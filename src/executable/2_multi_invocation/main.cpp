@@ -4,11 +4,6 @@
 #include <thread>
 
 
-static auto constexpr mode = bcpp::synchronization_mode::non_blocking;
-using work_contract_tree = bcpp::work_contract_tree<mode>;
-using work_contract = bcpp::work_contract<mode>;
-
-
 //=============================================================================
 void example_multi_invocation
 (
@@ -23,20 +18,20 @@ void example_multi_invocation
 
     std::cout << "===============================\nexample_multi_invocation:\n";
     // create work contract tree
-    work_contract_tree workContractTree;
+    bcpp::work_contract_tree workContractTree;
 
     // create async worker thread to service scheduled contracts
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractTree.execute_next_contract();});
 
     // create a work contract
-    auto workFunction = [n = invocation_count](auto & self) mutable
+    auto workFunction = [n = invocation_count](auto & contractToken) mutable
             {
                 std::cout << "n = " << n << "\n"; 
                 if (--n == 0) 
-                    self.release();
-                self.schedule();
+                    contractToken.release();
+                contractToken.schedule();
             };
-    auto workContract = workContractTree.create_contract(workFunction, work_contract::initial_state::scheduled);
+    auto workContract = workContractTree.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
 
     // wait until contract has been invoked
     while (workContract.is_valid())

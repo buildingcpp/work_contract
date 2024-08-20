@@ -9,7 +9,7 @@
 #include <memory>
 
 
-namespace bcpp
+namespace bcpp::implementation
 {
 
     template <synchronization_mode T>
@@ -40,6 +40,8 @@ namespace bcpp
 
         bool release();
 
+        bool deschedule();
+
         bool is_valid() const;
 
         explicit operator bool() const;
@@ -67,7 +69,15 @@ namespace bcpp
 
     }; // class work_contract
 
-} // namespace bcpp
+} // namespace bcpp::implementation
+
+
+namespace bcpp
+{
+
+    using work_contract = implementation::work_contract<synchronization_mode::non_blocking>;
+    using blocking_work_contract = implementation::work_contract<synchronization_mode::blocking>;
+}
 
 
 #include "./work_contract_tree.h"
@@ -75,7 +85,7 @@ namespace bcpp
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bcpp::work_contract<T>::work_contract
+inline bcpp::implementation::work_contract<T>::work_contract
 (
     work_contract_tree_type * owner,
     std::shared_ptr<typename work_contract_tree_type::release_token> releaseToken, 
@@ -93,7 +103,7 @@ inline bcpp::work_contract<T>::work_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bcpp::work_contract<T>::work_contract
+inline bcpp::implementation::work_contract<T>::work_contract
 (
     work_contract && other
 ):
@@ -109,7 +119,7 @@ inline bcpp::work_contract<T>::work_contract
     
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::work_contract<T>::operator =
+inline auto bcpp::implementation::work_contract<T>::operator =
 (
     work_contract && other
 ) -> work_contract &
@@ -132,7 +142,7 @@ inline auto bcpp::work_contract<T>::operator =
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bcpp::work_contract<T>::~work_contract
+inline bcpp::implementation::work_contract<T>::~work_contract
 (
 )
 {
@@ -142,7 +152,7 @@ inline bcpp::work_contract<T>::~work_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::work_contract<T>::get_id
+inline auto bcpp::implementation::work_contract<T>::get_id
 (
 ) const -> id_type
 {
@@ -152,7 +162,7 @@ inline auto bcpp::work_contract<T>::get_id
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::work_contract<T>::schedule
+inline void bcpp::implementation::work_contract<T>::schedule
 (
 )
 {
@@ -162,7 +172,7 @@ inline void bcpp::work_contract<T>::schedule
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::work_contract<T>::release
+inline bool bcpp::implementation::work_contract<T>::release
 (
 )
 {
@@ -178,7 +188,7 @@ inline bool bcpp::work_contract<T>::release
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::work_contract<T>::is_valid
+inline bool bcpp::implementation::work_contract<T>::is_valid
 (
 ) const
 {
@@ -188,7 +198,7 @@ inline bool bcpp::work_contract<T>::is_valid
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bcpp::work_contract<T>::operator bool
+inline bcpp::implementation::work_contract<T>::operator bool
 (
 ) const
 {
