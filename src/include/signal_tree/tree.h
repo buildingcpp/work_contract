@@ -11,7 +11,7 @@ namespace bcpp
     {
 
         //============================================================================= 
-        template <std::uint64_t total_counters, std::uint64_t bits_per_counter>
+        template <std::uint64_t total_counters, std::uint64_t bits_per_counter, std::uint64_t bias_bit = (1ull << 63)>
         struct default_selector
         {
             inline auto operator()
@@ -19,11 +19,13 @@ namespace bcpp
                 // default select will select which ever child is non zero, or if both
                 // children are non zero, prefer the child indicated by the bias flag.
                 std::uint64_t biasFlags,
-                std::uint64_t counters
+                std::uint64_t counters,
+                std::uint64_t nextBias = 0
             ) const noexcept -> signal_index
             {
                 if constexpr (total_counters == 1)
                 {
+                    select_bias_hint |= nextBias;
                     return 0;
                 }
                 else
@@ -32,11 +34,18 @@ namespace bcpp
                     static auto constexpr bits_per_half = (counters_per_half * bits_per_counter);
                     static auto constexpr right_bit_mask = ((1ull << bits_per_half) - 1);
                     static auto constexpr left_bit_mask = (right_bit_mask << bits_per_half);
-                    auto chooseRight = (((biasFlags & 0x8000000000000000ull) && (counters & right_bit_mask)) || ((counters & left_bit_mask) == 0ull));
+
+                    auto const rightCounters = (counters & right_bit_mask);
+                    auto const leftCounters = (counters & left_bit_mask);
+                    auto const biasRight = (biasFlags & bias_bit);
+                    auto chooseRight = ((biasRight && rightCounters) || (leftCounters == 0ull));
+                    nextBias <<= 1;
+                    nextBias |= (rightCounters != 0); 
                     counters >>= (chooseRight) ? 0 : bits_per_half;
-                    return ((chooseRight) ? counters_per_half : 0) + default_selector<counters_per_half, bits_per_counter>()(biasFlags << 1, counters & right_bit_mask);
+                    return ((chooseRight) ? counters_per_half : 0) + default_selector<counters_per_half, bits_per_counter, bias_bit / 2>()(biasFlags, counters & right_bit_mask, nextBias);
                 }
             }
+
         };
 
 
@@ -95,9 +104,6 @@ namespace bcpp
             bool empty() const noexcept;
 
             template <template <std::uint64_t, std::uint64_t> class = default_selector>
-            signal_index select() noexcept;
-
-            template <template <std::uint64_t, std::uint64_t> class = default_selector>
             signal_index select
             (
                 std::uint64_t
@@ -139,22 +145,6 @@ inline bool bcpp::implementation::signal_tree::tree<N>::empty
 ) const noexcept 
 {
     return rootLevel_.empty();
-}
-
-
-//=============================================================================
-template <std::size_t N>
-template <template <std::uint64_t, std::uint64_t> class select_function>
-inline auto bcpp::implementation::signal_tree::tree<N>::select 
-(
-    // select and return the index of a leaf which is 'set'
-    // return invalid_signal_index if no leaf is 'set' (empty tree)
-) noexcept -> signal_index
-{
-    static thread_local std::uint64_t tls_inclinationFlags;
-    auto result = select<select_function>(tls_inclinationFlags++);
-    tls_inclinationFlags = (result + 1);
-    return result;
 }
 
 

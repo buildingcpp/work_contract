@@ -109,11 +109,14 @@ template <bcpp::implementation::signal_tree::level_traits_concept T>
 inline bool bcpp::implementation::signal_tree::level<T>::set
 (
     // increment the counter associated with the specified index (id of a leaf node)
+    // return true if this set caused the level to move from empty to non empty
+    // return false otherwise.
     signal_index signalIndex
 ) noexcept
 {
     if constexpr (non_leaf_level_traits<T>)
     {
+        // recursion to leaf. return false if leaf set failed
         if (!childLevel_.set(signalIndex))
             return false;
     }
@@ -164,8 +167,9 @@ inline auto bcpp::implementation::signal_tree::level<T>::select
     }
     else
     {
-        auto childSelectedCount = childLevel_. template select<select_function>(biasFlags, selectedCounter + (nodeIndex * counters_per_node));
         static auto constexpr bias_bits_consumed_to_select_child_counter = minimum_bit_count(child_level_type::node_capacity) - 1;
-        return ((selectedCounter << bias_bits_consumed_to_select_child_counter) | childSelectedCount);
+        select_bias_hint <<= bias_bits_consumed_to_select_child_counter;
+        auto childSelectedCounter = childLevel_. template select<select_function>(biasFlags, selectedCounter + (nodeIndex * counters_per_node));
+        return ((selectedCounter << bias_bits_consumed_to_select_child_counter) | childSelectedCounter);
     }
 }

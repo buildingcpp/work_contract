@@ -9,7 +9,7 @@ bcpp::implementation::work_contract_tree<T>::work_contract_tree
 ):
     subTreeCount_(minimum_power_of_two((capacity + (signal_tree_type::capacity - 1)) / signal_tree_type::capacity)),
     subTreeMask_(subTreeCount_ - 1),
-    subTreeShift_(minimum_bit_count(subTreeCount_ - 1)),
+    subTreeShift_(minimum_bit_count(signal_tree_type::capacity - 1)),
     signalTree_(subTreeCount_),
     available_(subTreeCount_),
     contracts_(subTreeCount_ * signal_tree_type::capacity),
@@ -64,22 +64,20 @@ auto bcpp::implementation::work_contract_tree<T>::get_available_contract
 (
 ) -> work_contract_id
 {
-    auto biasFlags = tls_biasFlags++;
-    auto subTreeIndex = biasFlags;
-    biasFlags >>= subTreeShift_;
-    biasFlags <<= bias_shift;
-
     for (auto i = 0ull; i < available_.size(); ++i)
     {
-        if (auto signalId = available_[subTreeIndex & subTreeMask_].select<largest_child_selector>(biasFlags); signalId != ~0ull)
+        auto subTreeIndex (nextAvailableTreeIndex_++ & subTreeMask_);
+        if (!available_[subTreeIndex].empty())
         {
-            auto workContractId = (subTreeIndex & subTreeMask_) * signal_tree_capacity;
-            workContractId += signalId;
-            return workContractId;
+            if (auto signalIndex = available_[subTreeIndex].select<largest_child_selector>(0); signalIndex != ~0ull)
+            {
+                work_contract_id workContractId(subTreeIndex * signal_tree_capacity);
+                workContractId += signalIndex;
+                return workContractId;
+            }
         }
-        ++subTreeIndex;
     }
-    return {}; 
+    return ~0ull; 
 }
 
 

@@ -13,6 +13,8 @@
 namespace bcpp::implementation::signal_tree
 {
 
+    static thread_local std::uint64_t select_bias_hint = 0;
+
     template <std::size_t N>
     requires (is_power_of_two(N))
     struct node_traits
@@ -46,22 +48,12 @@ namespace bcpp::implementation::signal_tree
         using bias_flags = std::uint64_t;
         using value_type = std::uint64_t;
 
-        class counter_index
-        {
-        public:
-            using value_type = std::uint64_t;
-            counter_index(signal_index signalIndex):value_(signalIndex / counter_capacity){}
-            value_type value() const{return value_;}
-        private:
-            value_type const value_;
-        };
-
         bool set
         (
-            counter_index
+            std::uint64_t
         ) noexcept;
 
-        bool empty() const noexcept;
+        bool empty() const noexcept{return (value_ == 0);}
 
         template <template <std::uint64_t, std::uint64_t> class>
         signal_index select
@@ -73,7 +65,7 @@ namespace bcpp::implementation::signal_tree
 
         std::atomic<value_type> value_{0};
 
-        static std::array<std::uint64_t, number_of_counters> constexpr addend
+        static std::array<std::uint64_t, number_of_counters> constexpr addend_
                 {
                     []<std::size_t ... N>(std::index_sequence<N ...>) -> std::array<std::uint64_t, number_of_counters>
                     {
@@ -89,20 +81,21 @@ namespace bcpp::implementation::signal_tree
 template <bcpp::implementation::signal_tree::node_traits_concept T>
 inline bool bcpp::implementation::signal_tree::node<T>::set
 (
-    counter_index counterIndex
+    std::uint64_t signalIndex
 ) noexcept
 {
+    auto counterIndex = signalIndex / counter_capacity;
     if constexpr (non_leaf_node_traits<T>)
     {
         // non-leaf node.  increment correct sub counter
-        value_ += addend[counterIndex.value()];
+        value_ += addend_[counterIndex];
         return true;
     }
     else
     {
         // leaf node. counters are 1 bit in size
         // set correct counter bit and return true if not already set
-        auto bit = 0x8000000000000000ull >> counterIndex.value();
+        auto bit = 0x8000000000000000ull >> counterIndex;
         return ((value_.fetch_or(bit) & bit) == 0); 
     }
 }
@@ -122,7 +115,7 @@ inline auto bcpp::implementation::signal_tree::node<T>::select
         auto counterIndex = selector<number_of_counters, bits_per_counter>()(biasFlags, expected);
         if constexpr (non_leaf_node_traits<T>)
         {            
-            if (value_.compare_exchange_strong(expected, expected - addend[counterIndex]))
+            if (value_.compare_exchange_strong(expected, expected - addend_[counterIndex]))
                 return counterIndex;
         }
         else

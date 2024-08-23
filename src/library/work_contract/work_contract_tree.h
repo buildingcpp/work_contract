@@ -42,7 +42,8 @@ namespace bcpp::implementation
             {
                 if constexpr (bits_per_counter == 1)
                 {
-                    return (counters > 0) ? std::countl_zero(counters) : ~0ull;
+                    auto ret = (counters > 0) ? std::countl_zero(counters) : ~0ull;
+                    return ret;
                 }
                 else
                 {
@@ -60,7 +61,7 @@ namespace bcpp::implementation
                         }
                         counters >>= bits_per_counter;
                     }
-                    return selected;
+                    return (total_counters - selected - 1);
                 }
             }
         };
@@ -126,11 +127,23 @@ namespace bcpp::implementation
         );
 
         bool execute_next_contract();
+
+        bool execute_next_contract
+        (
+            std::uint64_t & 
+        );
         
         template <typename rep, typename period>
         bool execute_next_contract
         (
-            std::chrono::duration<rep, period> duration
+            std::chrono::duration<rep, period>
+        ) requires (mode == synchronization_mode::blocking);
+
+        template <typename rep, typename period>
+        bool execute_next_contract
+        (
+            std::chrono::duration<rep, period>,
+            std::uint64_t &
         ) requires (mode == synchronization_mode::blocking);
 
         void stop();
@@ -227,8 +240,9 @@ namespace bcpp::implementation
 
         std::atomic<bool>                                               stopped_{false};
 
+        std::atomic<std::uint64_t>                                      nextAvailableTreeIndex_{0};
 
-        static thread_local std::uint64_t tls_biasFlags;
+        static thread_local std::uint64_t                               tls_biasFlags_;
 
         struct 
         {
@@ -278,10 +292,6 @@ namespace bcpp::implementation
     }; // class work_contract_tree
 
 
-    template <synchronization_mode T>
-    thread_local std::uint64_t work_contract_tree<T>::tls_biasFlags{0};
-
-
     //=========================================================================
     template <synchronization_mode T>
     class work_contract_tree<T>::release_token final :
@@ -308,6 +318,7 @@ namespace bcpp::implementation
     public:
         void schedule();
         void release();
+        work_contract_id get_contract_id() const{return contractId_;}
     private:
         friend work_contract_tree<T>;
         work_contract_token() = delete;
@@ -341,6 +352,9 @@ namespace bcpp::implementation
         work_contract_tree<T> &     owner_;
     }; // class work_contract_tree<>::exception_token
 
+
+    template <synchronization_mode T>
+    std::uint64_t thread_local work_contract_tree<T>::tls_biasFlags_ = 0;
 
 } // namespace bcpp::implementation
 
@@ -537,31 +551,51 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
     // based on the flags associated with that contract.
+)
+{
+    return execute_next_contract(tls_biasFlags_);
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
+inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+(
+    // select a signal (a set signal) from the array of signal trees and, if found,
+    // (which clears the signal) then process the pending action on that contract
+    // based on the flags associated with that contract.
+    std::uint64_t & biasFlags
 ) 
 {
     if constexpr (mode == synchronization_mode::blocking)
     {
         if (!waitableState_.wait(this))// this should be done more graceful but for now ..
             return false;
-    }
-
-    auto biasFlags = tls_biasFlags++;
-    auto subTreeIndex = (biasFlags & subTreeMask_);
-    biasFlags >>= subTreeShift_; // these two shifts should be combined
-    biasFlags <<= bias_shift;
-
+    }        
+    
+    auto subTreeIndex = (biasFlags / signal_tree_type::capacity);
     for (auto i = 0ull; i < signalTree_.size(); ++i)
     {
-        if (auto signalIndex = signalTree_[subTreeIndex].select(biasFlags); signalIndex != invalid_signal_index)
+        subTreeIndex &= subTreeMask_;
+        if (auto signalIndex = signalTree_[subTreeIndex].select(biasFlags << bias_shift); signalIndex != invalid_signal_index)
         {
-            work_contract_id workContractId((subTreeIndex) * signal_tree_capacity);
+            work_contract_id workContractId(subTreeIndex * signal_tree_capacity);
             workContractId |= signalIndex;
-         //   tls_biasFlags = ((signalIndex) << subTreeShift_) | ((subTreeIndex + 1) & subTreeMask_);//(workContractId + 1);
-            process_contract(work_contract_id(workContractId));
+
+            std::uint64_t b = (1ull << std::countr_zero(signal_tree::select_bias_hint ^ biasFlags)) & (signal_tree_type::capacity - 1);
+            if (b == 0)
+            {
+                biasFlags = ((subTreeIndex + 1) * signal_tree_type::capacity);
+            }
+            else
+            {
+                biasFlags |= b;
+                biasFlags &= ~(b - 1);
+            }
+            process_contract(workContractId);
             return true;
         }
-        ++subTreeIndex;
-        subTreeIndex &= subTreeMask_;
+        biasFlags = (++subTreeIndex * signal_tree_type::capacity);
     }
     return false;
 }
@@ -608,26 +642,24 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
     std::chrono::duration<rep, period> duration
 ) requires (mode == synchronization_mode::blocking)
 {
-    if (waitableState_.wait_for(this, duration))    // this should be done more graceful but for now ..
-    {
-        auto biasFlags = tls_biasFlags++;
-        auto subTreeIndex = (biasFlags & subTreeMask_);
-        biasFlags >>= subTreeShift_; // these two shifts should be combined
-        biasFlags <<= bias_shift;
+    return execute_next_contract(duration, tls_biasFlags_);
+}
 
-        for (auto i = 0; i < signalTree_.size(); ++i)
-        {
-            if (auto signalIndex = signalTree_[subTreeIndex & subTreeMask_].select(biasFlags); signalIndex != invalid_signal_index)
-            {
-                work_contract_id workContractId((subTreeIndex & subTreeMask_) * signal_tree_capacity);
-                workContractId |= signalIndex;
-            //    tls_biasFlags = (workContractId + 1);
-                process_contract(workContractId);
-                return true;
-            }
-            ++subTreeIndex;
-        }
-    }
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
+template <typename rep, typename period>
+inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+(
+    // select a signal (a set signal) from the array of signal trees and, if found,
+    // (which clears the signal) then process the pending action on that contract
+    // based on the flags associated with that contract.
+    std::chrono::duration<rep, period> duration,
+    std::uint64_t & biasFlags
+) requires (mode == synchronization_mode::blocking)
+{
+    if (waitableState_.wait_for(this, duration))
+        return this->execute_next_contact(biasFlags);
     return false;
 }
 

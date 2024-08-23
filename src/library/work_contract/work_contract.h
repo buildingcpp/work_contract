@@ -46,7 +46,7 @@ namespace bcpp::implementation
 
         explicit operator bool() const;
 
-    private:
+ //   private:
 
         friend class work_contract_tree<T>;
         using work_contract_tree_type = work_contract_tree<T>;
