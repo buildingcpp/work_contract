@@ -1,9 +1,9 @@
-#include "./work_contract_tree.h"
+#include "./work_contract_group.h"
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_tree<T>::work_contract_tree
+bcpp::implementation::work_contract_group<T>::work_contract_group
 (
     std::uint64_t capacity
 ):
@@ -25,17 +25,17 @@ bcpp::implementation::work_contract_tree<T>::work_contract_tree
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_tree<T>::work_contract_tree
+bcpp::implementation::work_contract_group<T>::work_contract_group
 (
 ):
-    work_contract_tree(default_capacity)
+    work_contract_group(default_capacity)
 {
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_tree<T>::~work_contract_tree
+bcpp::implementation::work_contract_group<T>::~work_contract_group
 (
 )
 {
@@ -45,7 +45,7 @@ bcpp::implementation::work_contract_tree<T>::~work_contract_tree
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::stop
+void bcpp::implementation::work_contract_group<T>::stop
 (
 )
 {
@@ -60,7 +60,7 @@ void bcpp::implementation::work_contract_tree<T>::stop
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-auto bcpp::implementation::work_contract_tree<T>::get_available_contract
+auto bcpp::implementation::work_contract_group<T>::get_available_contract
 (
 ) -> work_contract_id
 {
@@ -83,7 +83,7 @@ auto bcpp::implementation::work_contract_tree<T>::get_available_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::erase_contract
+void bcpp::implementation::work_contract_group<T>::erase_contract
 (
     // after contract's release function is invoked, clean up anything related to the contract
     work_contract_id contractId
@@ -103,7 +103,7 @@ void bcpp::implementation::work_contract_tree<T>::erase_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::process_exception
+void bcpp::implementation::work_contract_group<T>::process_exception
 (
     work_contract_id contractId,
     std::exception_ptr exception
@@ -111,8 +111,8 @@ void bcpp::implementation::work_contract_tree<T>::process_exception
 {
     if (exception_[contractId])
     {
-        exception_token token(contractId, exception, *this);
-        exception_[contractId](token);
+        work_contract_token workContractToken(contractId, *this);
+        exception_[contractId](workContractToken, exception);
     }
     else
     {
@@ -123,7 +123,7 @@ void bcpp::implementation::work_contract_tree<T>::process_exception
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::process_release
+void bcpp::implementation::work_contract_group<T>::process_release
 (
     // invoke the contract's release function.  use auto class to ensure
     // erasure of contract in the event of exceptions in the release function.
@@ -144,26 +144,26 @@ void bcpp::implementation::work_contract_tree<T>::process_release
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_tree<T>::release_token::release_token
+bcpp::implementation::work_contract_group<T>::release_token::release_token
 (
-    work_contract_tree * workContractTree
+    work_contract_group * workContractGroup
 ):
-    workContractTree_(workContractTree)
+    workContractGroup_(workContractGroup)
 {
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bool bcpp::implementation::work_contract_tree<T>::release_token::schedule
+bool bcpp::implementation::work_contract_group<T>::release_token::schedule
 (
     work_contract_type const & workContract
 )
 {
     std::lock_guard lockGuard(mutex_);
-    if (auto workContractTree = std::exchange(workContractTree_, nullptr); workContractTree != nullptr)
+    if (auto workContractGroup = std::exchange(workContractGroup_, nullptr); workContractGroup != nullptr)
     {
-        workContractTree->release(workContract.get_id());
+        workContractGroup->release(workContract.get_id());
         return true;
     }
     return false;
@@ -172,97 +172,42 @@ bool bcpp::implementation::work_contract_tree<T>::release_token::schedule
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::release_token::orphan
+void bcpp::implementation::work_contract_group<T>::release_token::orphan
 (
 )
 {
     std::lock_guard lockGuard(mutex_);
-    workContractTree_ = nullptr;
+    workContractGroup_ = nullptr;
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bool bcpp::implementation::work_contract_tree<T>::release_token::is_valid
+bool bcpp::implementation::work_contract_group<T>::release_token::is_valid
 (
 ) const
 {
     std::lock_guard lockGuard(mutex_);
-    return ((bool)workContractTree_);
+    return ((bool)workContractGroup_);
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_tree<T>::exception_token::exception_token 
-(
-    work_contract_id contractId,
-    std::exception_ptr exception,
-    work_contract_tree<T> & owner
-):
-    contractId_(contractId),
-    exception_(exception),
-    owner_(owner)
-{
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::exception_token::release
-(
-)
-{
-    owner_.release(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_tree<T>::exception_token::schedule
-(
-)
-{
-    owner_.schedule(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto bcpp::implementation::work_contract_tree<T>::exception_token::get_contract_id
-(
-) const -> work_contract_id
-{
-    return contractId_;
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto bcpp::implementation::work_contract_tree<T>::exception_token::get_exception
-(
-) const -> std::exception_ptr
-{
-    return exception_;
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-class bcpp::implementation::work_contract_tree<T>::auto_erase_contract
+class bcpp::implementation::work_contract_group<T>::auto_erase_contract
 {
 public:
-    auto_erase_contract(std::uint64_t contractId, work_contract_tree<T> & owner):contractId_(contractId),owner_(owner){}
+    auto_erase_contract(std::uint64_t contractId, work_contract_group<T> & owner):contractId_(contractId),owner_(owner){}
     ~auto_erase_contract(){owner_.erase_contract(contractId_);}
 private:
     std::uint64_t                   contractId_;
-    work_contract_tree<T> &         owner_;
+    work_contract_group<T> &         owner_;
 };
 
 
 //=============================================================================
 namespace bcpp::implementation
 {
-    template class work_contract_tree<synchronization_mode::blocking>;
-    template class work_contract_tree<synchronization_mode::non_blocking>;
+    template class work_contract_group<synchronization_mode::blocking>;
+    template class work_contract_group<synchronization_mode::non_blocking>;
 }

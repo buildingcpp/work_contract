@@ -15,19 +15,19 @@ int main
 )
 {
     bcpp::spsc_fixed_queue<int> queue(1024);
-    bcpp::work_contract_tree wct;
+    bcpp::work_contract_group wcg;
 
     static auto constexpr num_worker_threads = 16;
     std::vector<std::jthread> workerThreads(num_worker_threads);
     for (auto & workerThread : workerThreads)
-        workerThread = std::jthread([&](auto token){while (!token.stop_requested()) wct.execute_next_contract();});
+        workerThread = std::jthread([&](auto token){while (!token.stop_requested()) wcg.execute_next_contract();});
 
     // async consume
-    auto wc = wct.create_contract([&](auto & wcToken)
+    auto wc = wcg.create_contract([&](auto & token)
             {
                 std::cout << "thread " << std::this_thread::get_id() << " consumed " << queue.pop() << "\n";
                 if (!queue.empty())
-                    wcToken.schedule();
+                    token.schedule();
             });
 
     // produce

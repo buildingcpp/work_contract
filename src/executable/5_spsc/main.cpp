@@ -9,12 +9,12 @@
 //=============================================================================
 int main()
 {
-    bcpp::work_contract_tree wct;
-    std::jthread workerThread([&](auto st){while (!st.stop_requested()) wct.execute_next_contract();});
+    bcpp::work_contract_group wcg;
+    std::jthread workerThread([&](auto st){while (!st.stop_requested()) wcg.execute_next_contract();});
 
     bcpp::spsc_fixed_queue<int> queue(1024);
     auto consume = [&](auto & wc){std::cout << queue.pop() << '\n'; if (!queue.empty()) wc.schedule();};
-    auto wc = wct.create_contract(consume);    
+    auto wc = wcg.create_contract(consume);    
     
     auto produce = [&](auto n){queue.push(n); wc.schedule();};
     for (auto i = 0; i < 16; ++i)

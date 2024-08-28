@@ -23,8 +23,8 @@ void example_lock_free
     // a lock free queue.  notice, SINGLE CONSUMER even though there are many 'consumer' threads
     bcpp::spsc_fixed_queue<std::uint64_t> queue(number_of_operations * 2);
 
-    // create work contract tree
-    bcpp::work_contract_tree workContractTree;
+    // create work contract group
+    bcpp::work_contract_group workContractGroup;
 
     // create async worker thread to service scheduled contracts
     std::vector<std::jthread> workerThreads(number_of_worker_threads);
@@ -37,7 +37,7 @@ void example_lock_free
                 ;
 
             while (!stopToken.stop_requested()) 
-                workContractTree.execute_next_contract();
+                workContractGroup.execute_next_contract();
         }));
 
     // create a work contract
@@ -45,7 +45,7 @@ void example_lock_free
     auto workFunction = [&, expected = 0](auto & contractToken) mutable
             {
                 // work contracts are executed by a single thread (thread safe) regardless of how
-                // many threads are servicing the parent work contract tree.
+                // many threads are servicing the parent work contract group.
 
                 // pop a value from the lock free SPSC queue
                 std::uint64_t value;
@@ -68,7 +68,7 @@ void example_lock_free
                 contractToken.schedule();
             };
 
-    auto workContract = workContractTree.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
+    auto workContract = workContractGroup.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
 
     // push values into the queue
     while (pendingThreads > 0)

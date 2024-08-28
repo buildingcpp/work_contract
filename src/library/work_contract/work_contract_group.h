@@ -1,6 +1,7 @@
 #pragma once
 
 #include "./work_contract_id.h"
+#include "./work_contract_token.h"
 
 #include <include/signal_tree.h>
 #include <include/synchronization_mode.h>
@@ -24,7 +25,7 @@ namespace bcpp::implementation
 
 
     template <synchronization_mode T>
-    class work_contract_tree final :
+    class work_contract_group final :
         non_copyable,
         non_movable
     {
@@ -72,57 +73,34 @@ namespace bcpp::implementation
         static auto constexpr default_capacity = 512;
 
         class release_token;
-        class work_contract_token;
-        class exception_token;
 
-        work_contract_tree();
+        work_contract_group();
 
-        work_contract_tree
+        work_contract_group
         (
             std::uint64_t
         );
 
-        ~work_contract_tree();
+        ~work_contract_group();
 
         work_contract_type create_contract
         (
-            std::invocable<work_contract_token &> auto &&,
+            work_contract_callable auto &&,
             work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
         );
 
         work_contract_type create_contract
         (
-            std::invocable<work_contract_token &> auto &&,
-            std::invocable auto &&,
-            work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
-        );
-
-        work_contract_type create_contract
-        (
-            std::invocable<work_contract_token &> auto &&,
-            std::invocable auto &&,
-            std::invocable<exception_token &> auto &&,
-            work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
-        );
-
-        work_contract_type create_contract
-        (
+            work_contract_callable auto &&,
             std::invocable auto &&,
             work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
         );
 
         work_contract_type create_contract
         (
+            work_contract_callable auto &&,
             std::invocable auto &&,
-            std::invocable auto &&,
-            work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
-        );
-
-        work_contract_type create_contract
-        (
-            std::invocable auto &&,
-            std::invocable auto &&,
-            std::invocable<exception_token &> auto &&,
+            std::invocable<work_contract_token<T> &, std::exception_ptr> auto &&,
             work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
         );
 
@@ -151,12 +129,13 @@ namespace bcpp::implementation
     private:
 
         class auto_erase_contract;
+        class auto_clear_execute_flag;
         
         friend class work_contract<mode>;
         friend class release_token;
-        friend class exception_token;
-        friend class work_contract_token;
+        friend class work_contract_token<T>;
         friend class auto_erase_contract;
+        friend class auto_clear_execute_flag;
 
         using state_flags = std::int8_t;
 
@@ -167,7 +146,7 @@ namespace bcpp::implementation
             static auto constexpr schedule_flag     = 0x00000001;
         
             std::atomic<state_flags>                    flags_;
-            std::function<void(work_contract_token &)>  work_;
+            std::function<void(work_contract_token<T> &)>  work_;
         };
 
         void schedule
@@ -232,7 +211,7 @@ namespace bcpp::implementation
 
         std::vector<std::function<void()>>                              release_;
 
-        std::vector<std::function<void(exception_token &)>>             exception_;
+        std::vector<std::function<void(work_contract_token<T> &, std::exception_ptr)>> exception_;
 
         std::vector<std::shared_ptr<release_token>>                     releaseToken_;
 
@@ -255,7 +234,7 @@ namespace bcpp::implementation
                 conditionVariable_.notify_all();
             }
 
-            bool wait(work_contract_tree const * owner) const
+            bool wait(work_contract_group const * owner) const
             {
                 return false;  // TODO: restore 
                 /*
@@ -271,7 +250,7 @@ namespace bcpp::implementation
 
             bool wait_for
             (
-                work_contract_tree const * owner,
+                work_contract_group const * owner,
                 std::chrono::nanoseconds duration
             ) const
             {                
@@ -289,72 +268,41 @@ namespace bcpp::implementation
 
         } waitableState_;
 
-    }; // class work_contract_tree
+    }; // class work_contract_group
 
 
     //=========================================================================
     template <synchronization_mode T>
-    class work_contract_tree<T>::release_token final :
+    class work_contract_group<T>::release_token final :
         non_copyable,
         non_movable
     {
     public:
         release_token() = delete;
-        release_token(work_contract_tree *);
+        release_token(work_contract_group *);
         bool schedule(work_contract_type const &);
         void orphan();
         bool is_valid() const;
         std::mutex mutable      mutex_;
-        work_contract_tree *    workContractTree_{};
-    }; // class work_contract_tree<>::release_token
+        work_contract_group *    workContractGroup_{};
+    }; // class work_contract_group<>::release_token
 
 
-    //=========================================================================
-    template <synchronization_mode T>
-    class work_contract_tree<T>::work_contract_token final :
-        non_movable,
-        non_copyable
+    //=============================================================================
+    template <bcpp::synchronization_mode T>
+    class bcpp::implementation::work_contract_group<T>::auto_clear_execute_flag
     {
     public:
-        void schedule();
-        void release();
-        work_contract_id get_contract_id() const{return contractId_;}
+        auto_clear_execute_flag(std::uint64_t contractId, work_contract_group<T> & owner):contractId_(contractId),owner_(owner){}
+        ~auto_clear_execute_flag(){owner_.clear_execute_flag(contractId_);}
     private:
-        friend work_contract_tree<T>;
-        work_contract_token() = delete;
-        work_contract_token(work_contract_id, work_contract_tree &);
-        ~work_contract_token();        
-        void clear_execute_flag();
-        work_contract_id            contractId_{~0ull};
-        work_contract_tree<T> &     owner_;
-        bool                        released_{false};
-    }; // class work_contract_tree<>::work_contract_token
-
-
-    //=========================================================================
-    template <synchronization_mode T>
-    class work_contract_tree<T>::exception_token final :
-        non_movable,
-        non_copyable
-    {
-    public:
-        ~exception_token() = default;
-        void release();
-        void schedule();
-        work_contract_id get_contract_id() const;
-        std::exception_ptr get_exception() const;
-    private:
-        friend work_contract_tree<T>;
-        exception_token() = delete;
-        exception_token(work_contract_id, std::exception_ptr, work_contract_tree &);
-        work_contract_id            contractId_{~0ull};
-        std::exception_ptr          exception_;
-        work_contract_tree<T> &     owner_;
-    }; // class work_contract_tree<>::exception_token
+        std::uint64_t               contractId_;
+        work_contract_group<T> &    owner_;
+    };
 
 
     template <synchronization_mode T>
-    std::uint64_t thread_local work_contract_tree<T>::tls_biasFlags_ = 0;
+    std::uint64_t thread_local work_contract_group<T>::tls_biasFlags_ = 0;
 
 } // namespace bcpp::implementation
 
@@ -362,8 +310,8 @@ namespace bcpp::implementation
 namespace bcpp
 {
     //=========================================================================
-    using blocking_work_contract_tree = implementation::work_contract_tree<synchronization_mode::blocking>;
-    using work_contract_tree = implementation::work_contract_tree<synchronization_mode::non_blocking>;
+    using blocking_work_contract_group = implementation::work_contract_group<synchronization_mode::blocking>;
+    using work_contract_group = implementation::work_contract_group<synchronization_mode::non_blocking>;
 
 } // namespace bcpp
 
@@ -373,52 +321,48 @@ namespace bcpp
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
+inline auto bcpp::implementation::work_contract_group<T>::create_contract
 (
-    std::invocable<work_contract_token &> auto && workFunction,
+    work_contract_callable auto && workFunction,
     work_contract_type::initial_state initialState
 ) -> work_contract_type
 {
-    return create_contract(std::forward<decltype(workFunction)>(workFunction), [](){}, initialState);
+    return create_contract(std::forward<std::decay_t<decltype(workFunction)>>(workFunction), [](){}, initialState);
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
+inline auto bcpp::implementation::work_contract_group<T>::create_contract
 (
-    std::invocable<work_contract_token &> auto && workFunction,
+    work_contract_callable auto && workFunction,
     std::invocable auto && releaseFunction,
     work_contract_type::initial_state initialState
 ) -> work_contract_type
 {    
-    if (auto workContractId = get_available_contract(); workContractId != ~0ull)
-    {
-        auto & contract = contracts_[workContractId];
-        contract.flags_ = 0;
-        contract.work_ = std::forward<decltype(workFunction)>(workFunction); 
-        release_[workContractId] = std::forward<decltype(releaseFunction)>(releaseFunction); 
-        return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
-    }
-    return {};
+    return create_contract(std::forward<std::decay_t<decltype(workFunction)>>(workFunction), std::forward<decltype(releaseFunction)>(releaseFunction), [](auto &, auto){}, initialState);
 }
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
+inline auto bcpp::implementation::work_contract_group<T>::create_contract
 (
-    std::invocable<work_contract_token &> auto && workFunction,
+    work_contract_callable auto && workFunction,
     std::invocable auto && releaseFunction,
-    std::invocable<exception_token &> auto && exceptionFunction,
+    std::invocable<work_contract_token<T> &, std::exception_ptr> auto && exceptionFunction,
     work_contract_type::initial_state initialState
 ) -> work_contract_type
-{    
+{
     if (auto workContractId = get_available_contract(); workContractId != ~0ull)
     {
         auto & contract = contracts_[workContractId];
         contract.flags_ = 0;
-        contract.work_ = std::forward<decltype(workFunction)>(workFunction); 
+        if constexpr (work_contract_token_callable<std::decay_t<decltype(workFunction)>>)
+            contract.work_ = std::forward<std::decay_t<decltype(workFunction)>>(workFunction); 
+        if constexpr (work_contract_no_token_callable<std::decay_t<decltype(workFunction)>>)
+            contract.work_ = [work = std::forward<std::decay_t<decltype(workFunction)>>(workFunction)](auto &) mutable{work();};
+
         release_[workContractId] = std::forward<decltype(releaseFunction)>(releaseFunction); 
         exception_[workContractId] = std::forward<decltype(exceptionFunction)>(exceptionFunction);
         return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
@@ -429,63 +373,7 @@ inline auto bcpp::implementation::work_contract_tree<T>::create_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
-(
-    std::invocable auto && workFunction,
-    work_contract_type::initial_state initialState
-) -> work_contract_type
-{
-    return create_contract(std::forward<decltype(workFunction)>(workFunction), [](){}, initialState);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
-(
-    std::invocable auto && workFunction,
-    std::invocable auto && releaseFunction,
-    work_contract_type::initial_state initialState
-) -> work_contract_type
-{
-    if (auto workContractId = get_available_contract(); workContractId != ~0ull)
-    {
-        auto & contract = contracts_[workContractId];
-        contract.flags_ = 0;
-        contract.work_ = [work = std::forward<decltype(workFunction)>(workFunction)](auto &) mutable{work();}; 
-        release_[workContractId] = std::forward<decltype(releaseFunction)>(releaseFunction);
-        return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
-    }
-    return {};
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::create_contract
-(
-    std::invocable auto && workFunction,
-    std::invocable auto && releaseFunction,
-    std::invocable<exception_token &> auto && exceptionFunction,
-    work_contract_type::initial_state initialState
-) -> work_contract_type
-{
-    if (auto workContractId = get_available_contract(); workContractId != ~0ull)
-    {
-        auto & contract = contracts_[workContractId];
-        contract.flags_ = 0;
-        contract.work_ = [work = std::forward<decltype(workFunction)>(workFunction)](auto &) mutable{work();}; 
-        release_[workContractId] = std::forward<decltype(releaseFunction)>(releaseFunction);
-        exception_[workContractId] = std::forward<decltype(exceptionFunction)>(exceptionFunction);
-        return {this, releaseToken_[workContractId] = std::make_shared<release_token>(this), workContractId, initialState};
-    }
-    return {};
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline auto bcpp::implementation::work_contract_tree<T>::get_tree_and_signal_index
+inline auto bcpp::implementation::work_contract_group<T>::get_tree_and_signal_index
 (
     work_contract_id workContractId
 ) const -> std::tuple<std::uint64_t, std::uint64_t> 
@@ -496,7 +384,7 @@ inline auto bcpp::implementation::work_contract_tree<T>::get_tree_and_signal_ind
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::release
+inline void bcpp::implementation::work_contract_group<T>::release
 (
     work_contract_id contractId
 )
@@ -511,7 +399,7 @@ inline void bcpp::implementation::work_contract_tree<T>::release
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::schedule
+inline void bcpp::implementation::work_contract_group<T>::schedule
 (
     // set the schedule flag.  if not previously set, and not currently executing
     // then also set the signal associated with the contract.
@@ -528,7 +416,7 @@ inline void bcpp::implementation::work_contract_tree<T>::schedule
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::set_contract_signal
+inline void bcpp::implementation::work_contract_group<T>::set_contract_signal
 (
     // set the signal that is associated with the specified contract
     work_contract_id contractId
@@ -546,7 +434,7 @@ inline void bcpp::implementation::work_contract_tree<T>::set_contract_signal
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -559,7 +447,7 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -603,7 +491,7 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::process_contract
+inline void bcpp::implementation::work_contract_group<T>::process_contract
 (
     work_contract_id contractId
 )
@@ -619,12 +507,13 @@ inline void bcpp::implementation::work_contract_tree<T>::process_contract
     }
     
     // the expected case. invoke the work function
-    work_contract_token token(contractId, *this); // RAII to clean up in case of exception
+    auto_clear_execute_flag autoClearExecuteFlag(contractId, *this);
     try
     {
-        contract.work_(token);
+        work_contract_token workContractToken(contractId, *this);
+        contract.work_(workContractToken);
     }
-    catch (std::exception const & exception)
+    catch (...)
     {
         process_exception(contractId, std::current_exception());
     }
@@ -634,7 +523,7 @@ inline void bcpp::implementation::work_contract_tree<T>::process_contract
 //=============================================================================
 template <bcpp::synchronization_mode T>
 template <typename rep, typename period>
-inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -649,7 +538,7 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
 //=============================================================================
 template <bcpp::synchronization_mode T>
 template <typename rep, typename period>
-inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
+inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -666,7 +555,7 @@ inline bool bcpp::implementation::work_contract_tree<T>::execute_next_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::clear_execute_flag
+inline void bcpp::implementation::work_contract_group<T>::clear_execute_flag
 (
     work_contract_id contractId
 )
@@ -675,49 +564,3 @@ inline void bcpp::implementation::work_contract_tree<T>::clear_execute_flag
         set_contract_signal(contractId);
 }
 
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline bcpp::implementation::work_contract_tree<T>::work_contract_token::work_contract_token 
-(
-    work_contract_id contractId,
-    work_contract_tree<T> & owner
-):
-    contractId_(contractId),
-    owner_(owner),
-    released_(false)
-{
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline bcpp::implementation::work_contract_tree<T>::work_contract_token::~work_contract_token
-(
-)
-{
-    owner_.clear_execute_flag(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::work_contract_token::schedule
-(
-)
-{
-    if (!released_)
-        owner_.schedule(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-inline void bcpp::implementation::work_contract_tree<T>::work_contract_token::release
-(
-)
-{
-    if (!released_)
-        owner_.release(contractId_);
-    released_ = true;
-}

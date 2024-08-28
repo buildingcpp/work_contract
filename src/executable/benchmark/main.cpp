@@ -96,9 +96,9 @@ void print_stats
 {
     auto [taskTotal, taskMean, taskSd, taskCv] = gather_stats(std::span(taskExecutionCount.data(), taskExecutionCount.size()));
     auto [threadTotal, threadMean, threadSd, threadCv] = gather_stats(std::span(threadExecutionCount.begin(), numThreads));
-    std::cout << std::fixed << std::setprecision(3) << //taskTotal << "\n"; //<<
-        (int)((taskTotal / testDurationInSeconds) / numThreads) << "\n";// << "," << taskMean << "," << taskSd << "," << 
-        //    taskCv << "," << threadSd << "," << threadCv << "\n";
+    std::cout << std::fixed << std::setprecision(3) << taskTotal << 
+        (int)((taskTotal / testDurationInSeconds) / numThreads) << "," << taskMean << "," << taskSd << "," << 
+            taskCv << "," << threadSd << "," << threadCv << "\n";
 
     for (auto & _ : taskExecutionCount)
         _ = 0;
@@ -379,12 +379,12 @@ auto work_contract_test
 )
 {
     // create work contracts and schedule all of them (like queuing in a work queue)
-    bcpp::work_contract_tree workContractTree((max_tasks * 4) < (1 << 18) ? (1 << 18) : (max_tasks * 4));
+    bcpp::work_contract_group workContractGroup((max_tasks * 4) < (1 << 18) ? (1 << 18) : (max_tasks * 4));
     std::vector<bcpp::work_contract> workContracts(max_tasks);
 
     for (auto i = 0; i < max_tasks; ++i)
     {
-        workContracts[i] = workContractTree.create_contract(
+        workContracts[i] = workContractGroup.create_contract(
                 [&, contractId = i](auto & token)
                 {
                     task();                             // execute the task
@@ -400,9 +400,9 @@ auto work_contract_test
             [&]()
             {                        
             //    if constexpr (T == bcpp::synchronization_mode::blocking)
-            //        workContractTree.execute_next_contract(std::chrono::milliseconds(1));
+            //        workContractGroup.execute_next_contract(std::chrono::milliseconds(1));
             //    else
-                    workContractTree.execute_next_contract();
+                    workContractGroup.execute_next_contract();
             });
     execute_test();
 }

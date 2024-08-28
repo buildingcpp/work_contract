@@ -13,7 +13,7 @@ namespace bcpp::implementation
 {
 
     template <synchronization_mode T>
-    class work_contract_tree;
+    class work_contract_group;
 
     
     template <synchronization_mode T>
@@ -31,6 +31,7 @@ namespace bcpp::implementation
         };
 
         work_contract() = default;
+
         ~work_contract();
 
         work_contract(work_contract &&);
@@ -46,24 +47,24 @@ namespace bcpp::implementation
 
         explicit operator bool() const;
 
- //   private:
+    private:
 
-        friend class work_contract_tree<T>;
-        using work_contract_tree_type = work_contract_tree<T>;
+        friend class work_contract_group<T>;
+        using work_contract_group_type = work_contract_group<T>;
 
         work_contract
         (
-            work_contract_tree_type *, 
-            std::shared_ptr<typename work_contract_tree_type::release_token>,
+            work_contract_group_type *, 
+            std::shared_ptr<typename work_contract_group_type::release_token>,
             id_type,
             initial_state = initial_state::unscheduled
         );
 
         id_type get_id() const;
 
-        work_contract_tree_type *   owner_{};
+        work_contract_group_type *   owner_{};
 
-        std::shared_ptr<typename work_contract_tree_type::release_token> releaseToken_;
+        std::shared_ptr<typename work_contract_group_type::release_token> releaseToken_;
 
         id_type                 id_{};
 
@@ -80,15 +81,15 @@ namespace bcpp
 }
 
 
-#include "./work_contract_tree.h"
+#include "./work_contract_group.h"
 
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
 inline bcpp::implementation::work_contract<T>::work_contract
 (
-    work_contract_tree_type * owner,
-    std::shared_ptr<typename work_contract_tree_type::release_token> releaseToken, 
+    work_contract_group_type * owner,
+    std::shared_ptr<typename work_contract_group_type::release_token> releaseToken, 
     id_type id,
     initial_state initialState
 ):

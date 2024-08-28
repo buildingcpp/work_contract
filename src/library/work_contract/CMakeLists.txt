@@ -1,6 +1,6 @@
 
 add_library(work_contract
-    ./work_contract_tree.cpp
+    ./work_contract_group.cpp
 )
 
 

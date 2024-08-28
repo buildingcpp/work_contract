@@ -18,10 +18,10 @@ void example_multi_invocation
 
     std::cout << "===============================\nexample_multi_invocation:\n";
     // create work contract tree
-    bcpp::work_contract_tree workContractTree;
+    bcpp::work_contract_group workContractGroup;
 
     // create async worker thread to service scheduled contracts
-    std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractTree.execute_next_contract();});
+    std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractGroup.execute_next_contract();});
 
     // create a work contract
     auto workFunction = [n = invocation_count](auto & contractToken) mutable
@@ -31,7 +31,7 @@ void example_multi_invocation
                     contractToken.release();
                 contractToken.schedule();
             };
-    auto workContract = workContractTree.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
+    auto workContract = workContractGroup.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
 
     // wait until contract has been invoked
     while (workContract.is_valid())
