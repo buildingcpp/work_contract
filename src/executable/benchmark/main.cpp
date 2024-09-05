@@ -96,7 +96,7 @@ void print_stats
 {
     auto [taskTotal, taskMean, taskSd, taskCv] = gather_stats(std::span(taskExecutionCount.data(), taskExecutionCount.size()));
     auto [threadTotal, threadMean, threadSd, threadCv] = gather_stats(std::span(threadExecutionCount.begin(), numThreads));
-    std::cout << std::fixed << std::setprecision(3) << taskTotal << 
+    std::cout << std::fixed << std::setprecision(3) << taskTotal << "," <<
         (int)((taskTotal / testDurationInSeconds) / numThreads) << "," << taskMean << "," << taskSd << "," << 
             taskCv << "," << threadSd << "," << threadCv << "\n";
 
@@ -140,7 +140,7 @@ void execute_test
 
 //=============================================================================
 template <std::size_t N>
-std::int32_t seive
+std::int32_t hash_task
 (
     // calculate primes up to N
 )
@@ -150,21 +150,6 @@ std::int32_t seive
     for (auto i = 0; i < N; ++i)
         n *= std::hash<std::string>()(str);
     return n;
-    /*
-    auto total = 0;
-    static auto constexpr max = N;
-    bool seive[max];
-    for (auto & _ : seive)
-        _ = true;
-    seive[0] = seive[1] = false;
-    for (auto i = 2ull; i < max; ++i)
-        for (auto n = i * 2; n < max; n += i)
-            seive[n] = false;
-    for (auto n : seive)
-        total += (n == true);
-    dummy += total;
-    return total;
-    */
 };
 
 
@@ -471,11 +456,11 @@ int main
     //    std::cout << "Work Contract (blocking)\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
     //    for (auto i = 2; i <= max_threads; ++i)
     //        work_contract_test<bcpp::synchronization_mode::blocking>(i, test_duration, task);
-
+/*
         std::cout << "Strauss mpmc_queue: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2ull; i <= max_threads; ++i)
             mpmc_queue_test(i, test_duration, task);
-
+*/
         std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
         for (auto i = 2ull; i <= max_threads; ++i)
             work_contract_test<bcpp::synchronization_mode::non_blocking>(i, test_duration, task);
@@ -485,10 +470,10 @@ int main
             mc_test(i, test_duration, task);
     };
 
-    run_test(seive<0>, "maximum contention"); // ~1ns
-    run_test(seive<1>, "high contention"); // ~266ns
-    run_test(seive<64>, "medium contention"); // ~1086ns
-    run_test(seive<256>, "low contention"); // ~4248
+    run_test(hash_task<0>, "maximum contention"); // ~1ns
+    run_test(hash_task<1>, "high contention"); // ~266ns
+    run_test(hash_task<64>, "medium contention"); // ~1086ns
+    run_test(hash_task<256>, "low contention"); // ~4248
 
     return dummy;
 }

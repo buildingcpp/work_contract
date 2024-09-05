@@ -193,7 +193,7 @@ namespace bcpp::implementation
             work_contract_id
         ) const;
 
-        using signal_tree_type = bcpp::signal_tree<512>;
+        using signal_tree_type = bcpp::signal_tree<64>;//512>;
         static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
         static auto constexpr bias_shift = (64 - minimum_bit_count(signal_tree_capacity - 1)); 
 

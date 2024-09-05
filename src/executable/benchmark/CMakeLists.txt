@@ -8,6 +8,7 @@ PRIVATE
     ${_lockfree_src_path}
     ${_tbb_src_path}
     ${_lockfree_mpmc_queue_src_path}
+    ${_googletest_src_path}
 )
 
 target_link_libraries(benchmark 
