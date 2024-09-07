@@ -104,21 +104,21 @@ namespace bcpp::implementation
             work_contract_type::initial_state = work_contract_type::initial_state::unscheduled
         );
 
-        bool execute_next_contract();
+        std::uint64_t execute_next_contract();
 
-        bool execute_next_contract
+        std::uint64_t execute_next_contract
         (
             std::uint64_t & 
         );
         
         template <typename rep, typename period>
-        bool execute_next_contract
+        std::uint64_t execute_next_contract
         (
             std::chrono::duration<rep, period>
         ) requires (mode == synchronization_mode::blocking);
 
         template <typename rep, typename period>
-        bool execute_next_contract
+        std::uint64_t execute_next_contract
         (
             std::chrono::duration<rep, period>,
             std::uint64_t &
@@ -434,7 +434,7 @@ inline void bcpp::implementation::work_contract_group<T>::set_contract_signal
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
+inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -447,7 +447,7 @@ inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
-inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
+inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -458,7 +458,7 @@ inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
     if constexpr (mode == synchronization_mode::blocking)
     {
         if (!waitableState_.wait(this))// this should be done more graceful but for now ..
-            return false;
+            return ~0ull;
     }        
     
     auto subTreeIndex = (biasFlags / signal_tree_type::capacity);
@@ -481,11 +481,11 @@ inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
                 biasFlags &= ~(b - 1);
             }
             process_contract(workContractId);
-            return true;
+            return signalIndex;
         }
         biasFlags = (++subTreeIndex * signal_tree_type::capacity);
     }
-    return false;
+    return ~0ull;
 }
 
 
@@ -523,7 +523,7 @@ inline void bcpp::implementation::work_contract_group<T>::process_contract
 //=============================================================================
 template <bcpp::synchronization_mode T>
 template <typename rep, typename period>
-inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
+inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -538,7 +538,7 @@ inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 //=============================================================================
 template <bcpp::synchronization_mode T>
 template <typename rep, typename period>
-inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
+inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_contract
 (
     // select a signal (a set signal) from the array of signal trees and, if found,
     // (which clears the signal) then process the pending action on that contract
@@ -549,7 +549,7 @@ inline bool bcpp::implementation::work_contract_group<T>::execute_next_contract
 {
     if (waitableState_.wait_for(this, duration))
         return this->execute_next_contact(biasFlags);
-    return false;
+    return ~0ull;
 }
 
 

@@ -11,16 +11,8 @@
 #include <cmath>
 #include <iomanip>
 #include <span>
+#include <fmt/format.h>
 
-#include <library/work_contract.h>
-
-#include <tbb/concurrent_queue.h>
-#include <include/boost/lockfree/queue.hpp>
-#include <concurrentqueue.h>
-#include <mpmc_queue.h>
-
-
-using namespace bcpp;
 using namespace std::chrono;
 
 
@@ -35,8 +27,6 @@ using namespace std::chrono;
 int cores[] = {16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 //int cores[] = {16,20,24,28,17,21,25,29,18,22,26,30,19,23,27,31};
 int mainCpu = 0;
-
-std::size_t dummy = 0;
 
 static auto constexpr test_duration = 1s;
 static auto constexpr max_tasks = 16384;
@@ -53,6 +43,8 @@ std::size_t thread_local tlsCurrentTaskId;
 std::atomic<bool> startTest = false;
 std::atomic<bool> endTest = false;
 std::vector<std::jthread> testThreads;
+
+#include "./test_harness.h"
 
 
 //==============================================================================
@@ -96,9 +88,7 @@ void print_stats
 {
     auto [taskTotal, taskMean, taskSd, taskCv] = gather_stats(std::span(taskExecutionCount.data(), taskExecutionCount.size()));
     auto [threadTotal, threadMean, threadSd, threadCv] = gather_stats(std::span(threadExecutionCount.begin(), numThreads));
-    std::cout << std::fixed << std::setprecision(3) << taskTotal << "," <<
-        (int)((taskTotal / testDurationInSeconds) / numThreads) << "," << taskMean << "," << taskSd << "," << 
-            taskCv << "," << threadSd << "," << threadCv << "\n";
+    std::cout <<fmt::format("{:<20}{:<25}{:<10.4f}{:<10.4f}\n", taskTotal, (int)((taskTotal / testDurationInSeconds) / numThreads), taskCv, threadCv);
 
     for (auto & _ : taskExecutionCount)
         _ = 0;
@@ -108,45 +98,11 @@ void print_stats
 
 
 //=============================================================================
-void execute_test
-(
-    // the actual test.  signal all threads to begin, wait, signal all threads to 
-    // stop. take timing.  calculate and print stats.
-)
-{
-    auto numThreads = testThreads.size();
-
-    // start test
-    auto startTime = std::chrono::system_clock::now();
-    startTest = true;
-    // wait for duration of test
-    std::this_thread::sleep_for(test_duration);
-    endTest = true;
-    auto stopTime = std::chrono::system_clock::now();
-    // stop worker threads
-    for (auto & testThread : testThreads)
-    {
-        testThread.request_stop();
-        testThread.join();
-    }
-
-    // test completed
-    // gather timing
-    auto elapsedTime = (stopTime - startTime);
-    auto testDurationInSeconds = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(elapsedTime).count() / std::nano::den;
-    print_stats(testThreads.size(), testDurationInSeconds);
-}
-
-
-//=============================================================================
 template <std::size_t N>
-std::int32_t hash_task
-(
-    // calculate primes up to N
-)
+std::int32_t hash_task()
 {
     static auto constexpr str = "guess what? chicken butt!";
-    auto n = 0;
+    auto volatile n = 0;
     for (auto i = 0; i < N; ++i)
         n *= std::hash<std::string>()(str);
     return n;
@@ -198,203 +154,55 @@ auto create_worker_threads
 
 
 //=============================================================================
-auto mpmc_queue_test
+auto execute_test
 (
     std::size_t numWorkerThreads,
-    std::chrono::nanoseconds test_duration,
-    std::invocable auto && task
+    auto && threadFunction
 )
 {
-    // create queue and fill it with 'max_tasks' tasks
-    es::lockfree::mpmc_queue<std::int32_t> queue(max_tasks * 2);
+    create_worker_threads(numWorkerThreads, threadFunction);
 
-    // to make this test as fair as possible the tasks will be created up front
-    // and only the index of the task will be managed by the queue.
-    // However, I expect that the typical real world usage case would involve the overhead
-    // of creating the task each time.
-    std::vector<std::decay_t<decltype(task)>> tasks;
-    for (auto i = 0; i < max_tasks; ++i)
+    auto numThreads = testThreads.size();
+
+    // start test
+    auto startTime = std::chrono::system_clock::now();
+    startTest = true;
+    // wait for duration of test
+    std::this_thread::sleep_for(test_duration);
+    endTest = true;
+    auto stopTime = std::chrono::system_clock::now();
+    // stop worker threads
+    for (auto & testThread : testThreads)
     {
-        tasks.push_back(task);
-        while (!queue.push(i))
-            ;
+        testThread.request_stop();
+        testThread.join();
     }
 
-    create_worker_threads(numWorkerThreads, 
-            [&]()
-            {                        
-                std::int32_t taskIndex;
-                if (queue.pop(taskIndex))
-                {
-                    tasks[taskIndex]();                     // execute task
-                    while (!queue.push(taskIndex))       // push back onto back of work queue
-                        ;
-                    tlsExecutionCount[taskIndex]++;   // update stats
-                }
-            });
-
-    execute_test();
+    // test completed
+    // gather timing
+    auto elapsedTime = (stopTime - startTime);
+    auto testDurationInSeconds = (double)std::chrono::duration_cast<std::chrono::nanoseconds>(elapsedTime).count() / std::nano::den;
+    print_stats(testThreads.size(), testDurationInSeconds);
 }
 
 
 //=============================================================================
-auto mc_test
+template <algorithm T>
+auto test_algorithm
 (
     std::size_t numWorkerThreads,
-    std::chrono::nanoseconds test_duration,
     std::invocable auto && task
 )
 {
-    // create queue and fill it with 'max_tasks' tasks
-    moodycamel::ConcurrentQueue<std::int32_t> queue(max_tasks * 2);
-
-    // to make this test as fair as possible the tasks will be created up front
-    // and only the index of the task will be managed by the queue.
-    // However, I expect that the typical real world usage case would involve the overhead
-    // of creating the task each time.
-    std::vector<std::decay_t<decltype(task)>> tasks;
+    test_harness<T, std::decay_t<decltype(task)>> testHarness(max_tasks);
     for (auto i = 0; i < max_tasks; ++i)
-    {
-        tasks.push_back(task);
-        while (!queue.enqueue(i))
-            ;
-    }
-
-    create_worker_threads(numWorkerThreads, 
-            [&]()
-            {                        
-                std::int32_t taskIndex;
-                if (queue.try_dequeue(taskIndex))
-                {
-                    tasks[taskIndex]();                     // execute task
-                    while (!queue.enqueue(taskIndex))       // push back onto back of work queue
-                        ;
-                    tlsExecutionCount[taskIndex]++;   // update stats
-                }
-            });
-
-    execute_test();
+        testHarness.add_task(task);
+    execute_test(numWorkerThreads, [&](){testHarness.process_next_task();});
 }
 
 
 //=============================================================================
-auto tbb_test
-(
-    std::size_t numWorkerThreads,
-    std::chrono::nanoseconds test_duration,
-    std::invocable auto && task
-)
-{
-    // craete queue and fill it with 'max_tasks' tasks
-    tbb::concurrent_queue<std::int32_t> queue;
-
-    // to make this test as fair as possible the tasks will be created up front
-    // and only the index of the task will be managed by the queue.
-    // However, I expect that the typical real world usage case would involve the overhead
-    // of creating the task each time.
-    std::vector<std::decay_t<decltype(task)>> tasks;
-    for (auto i = 0; i < max_tasks; ++i)
-    {
-        tasks.push_back(task);
-        queue.push(i);
-    }
-
-    create_worker_threads(numWorkerThreads, 
-            [&]()
-            {                        
-                std::int32_t taskIndex;
-                if (queue.try_pop(taskIndex))
-                {
-                    tasks[taskIndex]();                     // execute task
-                    tlsExecutionCount[taskIndex]++; // update stats
-                    queue.push(taskIndex);         // push back onto back of work queue
-                }
-            });
-
-    execute_test();
-}
-
-
-//=============================================================================
-auto boost_test
-(
-    std::size_t numWorkerThreads,
-    std::chrono::nanoseconds test_duration,
-    std::invocable auto && task
-)
-{
-    // craete queue and fill it with 'max_tasks' tasks
-    boost::lockfree::queue<std::int32_t> queue(max_tasks * 2);
-
-    // to make this test as fair as possible the tasks will be created up front
-    // and only the index of the task will be managed by the queue.
-    // However, I expect that the typical real world usage case would involve the overhead
-    // of creating the task each time.
-    std::vector<std::decay_t<decltype(task)>> tasks;
-    for (auto i = 0; i < max_tasks; ++i)
-    {
-        tasks.push_back(task);
-        while (!queue.push(i))
-            ;
-    }
-
-    create_worker_threads(numWorkerThreads, 
-            [&]()
-            {                        
-                std::int32_t taskIndex;
-                if (queue.pop(taskIndex))
-                {
-                    tasks[taskIndex]();                     // execute task
-                    tlsExecutionCount[taskIndex]++;         // update stats
-                    while (!queue.push(taskIndex));         // push back onto back of work queue
-                }
-            });
-
-    execute_test();
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto work_contract_test
-(
-    std::size_t numWorkerThreads,
-    std::chrono::nanoseconds test_duration,
-    std::invocable auto && task
-)
-{
-    // create work contracts and schedule all of them (like queuing in a work queue)
-    bcpp::work_contract_group workContractGroup((max_tasks * 4) < (1 << 18) ? (1 << 18) : (max_tasks * 4));
-    std::vector<bcpp::work_contract> workContracts(max_tasks);
-
-    for (auto i = 0; i < max_tasks; ++i)
-    {
-        workContracts[i] = workContractGroup.create_contract(
-                [&, contractId = i](auto & token)
-                {
-                    task();                             // execute the task
-                    token.schedule();                   // reschedule this contract (like pushing to back of work queue again)
-                    tlsExecutionCount[contractId]++;    // update stats
-                }, bcpp::work_contract::initial_state::scheduled);
-                
-        if (!workContracts[i].is_valid())
-            std::cout << "ERROR creating work contract\n";
-    }
-
-    create_worker_threads(numWorkerThreads, 
-            [&]()
-            {                        
-            //    if constexpr (T == bcpp::synchronization_mode::blocking)
-            //        workContractGroup.execute_next_contract(std::chrono::milliseconds(1));
-            //    else
-                    workContractGroup.execute_next_contract();
-            });
-    execute_test();
-}
-
-
-//=============================================================================
-std::chrono::nanoseconds get_task_duration
+auto get_task_duration
 (
     // this function tests the actual time it takes to execute a task without the multithreaded frameworks
     std::invocable auto && task
@@ -424,7 +232,7 @@ std::chrono::nanoseconds get_task_duration
     std::this_thread::sleep_for(std::chrono::seconds(1));
     end = true;
     auto endTime = std::chrono::system_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime) / counter;
+    return ((double)std::chrono::duration_cast<std::chrono::nanoseconds>(endTime - startTime).count() / counter);
 }
 
 
@@ -443,37 +251,37 @@ int main
         std::string title
     )
     {
-        std::cout << "\n\nTask " << title << ", average task duration is  " << get_task_duration(task).count() << " ns\n";
+        std::string green = "\033[1m";
+        std::string defaultColor = "\033[0m";
+        std::string line = "==========================================================================\n";
+        std::cout << fmt::format("\n\nTask {}, average task duration is {:.2f} ns\n", title, get_task_duration(task));
+        auto header = fmt::format("{:<20}{:<25}{:<10}{:<10}", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:\n");
 
-        std::cout << "Boost lockfree::queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
+        std::cout << "\n" << green << line << "Boost lock-free MPMC queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
-            boost_test(i, test_duration, task);
+            test_algorithm<algorithm::boost_lockfree>(i, task);
 
-        std::cout << "TBB concurrent_queue\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
+        std::cout << "\n" << green << line << "TBB concurrent_queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
-            tbb_test(i, test_duration, task);
+            test_algorithm<algorithm::tbb>(i, task);
 
-    //    std::cout << "Work Contract (blocking)\nTotal TasksTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
-    //    for (auto i = 2; i <= max_threads; ++i)
-    //        work_contract_test<bcpp::synchronization_mode::blocking>(i, test_duration, task);
-/*
-        std::cout << "Strauss mpmc_queue: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
+        std::cout << "\n" << green << line << "Strauss MPMC queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
-            mpmc_queue_test(i, test_duration, task);
-*/
-        std::cout << "Work Contract: \nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
-        for (auto i = 2ull; i <= max_threads; ++i)
-            work_contract_test<bcpp::synchronization_mode::non_blocking>(i, test_duration, task);
+            test_algorithm<algorithm::es>(i, task);
 
-        std::cout << "MoodyCamel (MPMC)\nTotal Tasks,Tasks per second per thread,task mean,task std dev,task cv,thread std dev,thread cv\n";
+        std::cout << "\n" << green << line << "MoodyCamel ConcurrentQueue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
-            mc_test(i, test_duration, task);
+            test_algorithm<algorithm::moody_camel>(i, task);
+
+        std::cout << "\n" << green << line << "Work Contract:\n" << header << line << defaultColor;
+        for (auto i = 2ull; i <= max_threads; ++i)
+            test_algorithm<algorithm::work_contract>(i, task);
     };
 
-    run_test(hash_task<0>, "maximum contention"); // ~1ns
-    run_test(hash_task<1>, "high contention"); // ~266ns
-    run_test(hash_task<64>, "medium contention"); // ~1086ns
-    run_test(hash_task<256>, "low contention"); // ~4248
+    run_test(hash_task<0>, "maximum contention"); // approx 1.5ns
+    run_test(hash_task<1>, "high contention"); // approx 17ns
+    run_test(hash_task<64>, "medium contention"); // ~1100ns
+    run_test(hash_task<256>, "low contention"); // ~4100ns
 
-    return dummy;
+    return 0;
 }

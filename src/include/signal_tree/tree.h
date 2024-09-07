@@ -45,7 +45,6 @@ namespace bcpp
                     return ((chooseRight) ? counters_per_half : 0) + default_selector<counters_per_half, bits_per_counter, bias_bit / 2>()(biasFlags, counters & right_bit_mask, nextBias);
                 }
             }
-
         };
 
 

@@ -9,11 +9,13 @@ PRIVATE
     ${_tbb_src_path}
     ${_lockfree_mpmc_queue_src_path}
     ${_googletest_src_path}
+    ${_fmt_src_path}/include
 )
 
 target_link_libraries(benchmark 
 PRIVATE
     work_contract
     tbb_static
+    fmt
 )
 
