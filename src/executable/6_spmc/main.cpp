@@ -31,7 +31,7 @@ int main
             });
 
     // produce
-    for (auto i = 0; i < 8192; ++i)
+    for (auto i = 0; i < 16; ++i)
     {
         while (!queue.push(i))
             ;
@@ -40,6 +40,5 @@ int main
 
     while (!queue.empty())
         ;
-        
     return 0;
 }

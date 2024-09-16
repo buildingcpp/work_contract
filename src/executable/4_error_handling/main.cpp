@@ -57,7 +57,8 @@ void example_exception
                 workContractToken.schedule();
             };
 
-    auto workContract = workContractGroup.create_contract(workFunction, [](){}, exceptionHandler, bcpp::work_contract::initial_state::scheduled);
+    auto workContract = workContractGroup.create_contract(workFunction, [](){}, 
+            exceptionHandler, bcpp::work_contract::initial_state::scheduled);
 
     // wait until contract has been invoked
     while (workContract)

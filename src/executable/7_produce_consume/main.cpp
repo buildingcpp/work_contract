@@ -1,4 +1,3 @@
-
 #include <library/work_contract.h>
 #include <include/spsc_fixed_queue.h>
 
@@ -29,15 +28,24 @@ struct producer
         return false;
     }
 
-    bool join
+    bool attach_consumer
     (
-        std::invocable<typename T::type> auto && consume,
+        std::invocable<typename T::type> auto && consumer,
         bcpp::work_contract_group & wcg
     )
     {
         if (consumeContract_)
             return false;
-        consumeContract_ = wcg.create_contract([this, c = std::forward<decltype(consume)>(consume)](auto & wc){c(pipe_.pop()); if (!pipe_.empty()) wc.schedule();},
+        consumeContract_ = wcg.create_contract(
+                [this, consumer]
+                (
+                    auto & contractToken
+                )
+                {
+                    consumer(pipe_.pop()); 
+                    if (!pipe_.empty()) 
+                        contractToken.schedule();
+                },
                 pipe_.empty() ? bcpp::work_contract::initial_state::unscheduled : bcpp::work_contract::initial_state::scheduled);
         return consumeContract_.is_valid();
     }
@@ -55,31 +63,22 @@ concept producer_concept = std::is_same_v<std::decay_t<T>, producer<typename std
 
 
 //=============================================================================
-struct consumer 
-{
-    bool join(producer_concept auto && producer, bcpp::work_contract_group & wcg)
-    {
-        return producer.join([](auto value){std::cout << "consumed " << value << "\n";}, wcg);
-    }
-};
-
-
-//=============================================================================
 int main()
 {
     bcpp::work_contract_group wcg;
     std::jthread workerThread([&](auto st){while (!st.stop_requested()) wcg.execute_next_contract();});
 
-    producer<bcpp::spsc_fixed_queue<int>> p(1024);
+    using pipe_type = bcpp::spsc_fixed_queue<int>;
+    producer<pipe_type> myProducer(1024);
 
-    consumer c;
-    c.join(p, wcg);
+    auto myConsumer = [](auto value){std::cout << "consumed " << value << "\n";};
+    myProducer.attach_consumer(myConsumer, wcg);
     
     auto start = std::chrono::system_clock::now();
     for (auto i = 0; i < 16; ++i)
-        while (!p.produce(i))
+        while (!myProducer.produce(i))
             ;
-    while (!p.empty())
+    while (!myProducer.empty())
         ;
     return 0;
 }

@@ -88,7 +88,7 @@ void print_stats
 {
     auto [taskTotal, taskMean, taskSd, taskCv] = gather_stats(std::span(taskExecutionCount.data(), taskExecutionCount.size()));
     auto [threadTotal, threadMean, threadSd, threadCv] = gather_stats(std::span(threadExecutionCount.begin(), numThreads));
-    std::cout <<fmt::format("{:<20}{:<25}{:<10.4f}{:<10.4f}\n", taskTotal, (int)((taskTotal / testDurationInSeconds) / numThreads), taskCv, threadCv);
+    std::cout <<fmt::format("{:<15}{:<20}{:<25}{:<10.4f}{:<10.4f}\n", numThreads, taskTotal, (int)((taskTotal / testDurationInSeconds) / numThreads), taskCv, threadCv);
 
     for (auto & _ : taskExecutionCount)
         _ = 0;
@@ -99,7 +99,7 @@ void print_stats
 
 //=============================================================================
 template <std::size_t N>
-std::int32_t hash_task()
+auto hash_task()
 {
     static auto constexpr str = "guess what? chicken butt!";
     auto volatile n = 0;
@@ -253,9 +253,9 @@ int main
     {
         std::string green = "\033[1m";
         std::string defaultColor = "\033[0m";
-        std::string line = "==========================================================================\n";
+        std::string line = "==================================================================================\n";
         std::cout << fmt::format("\n\nTask {}, average task duration is {:.2f} ns\n", title, get_task_duration(task));
-        auto header = fmt::format("{:<20}{:<25}{:<10}{:<10}", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:\n");
+        auto header = fmt::format("{:<15}{:<20}{:<25}{:<10}{:<10}\n", "Thread Count:", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:");
 
         std::cout << "\n" << green << line << "Boost lock-free MPMC queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
