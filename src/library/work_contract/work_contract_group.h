@@ -139,7 +139,7 @@ namespace bcpp::implementation
 
         using state_flags = std::int8_t;
 
-        struct /*alignas(64)*/ contract
+        struct alignas(64) contract
         {
             static auto constexpr release_flag      = 0x00000004;
             static auto constexpr execute_flag      = 0x00000002;
@@ -193,7 +193,7 @@ namespace bcpp::implementation
             work_contract_id
         ) const;
 
-        using signal_tree_type = bcpp::signal_tree<64>;//512>;
+        using signal_tree_type = bcpp::signal_tree<64>;
         static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
         static auto constexpr bias_shift = (64 - minimum_bit_count(signal_tree_capacity - 1)); 
 

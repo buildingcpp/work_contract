@@ -1,42 +1,13 @@
 #pragma once
 
-#include <bit>
+#include <include/bit.h>
+
 #include <cstdint>
 #include <concepts>
 
 
 namespace bcpp
 {
-
-    //=========================================================================
-    static inline constexpr auto minimum_bit_count
-    (
-        std::unsigned_integral auto value
-    )
-    {
-        return ((sizeof(value) * 8) - std::countl_zero(value));
-    }
-
-
-    //=========================================================================
-    static inline constexpr auto minimum_power_of_two
-    (
-        std::unsigned_integral auto value
-    )
-    {
-        return (1ull << minimum_bit_count(value - 1));
-    }
-
-
-    //=========================================================================
-    static inline consteval auto is_power_of_two
-    (
-        std::unsigned_integral auto value
-    )
-    {
-        return (std::popcount(value) == 1);
-    }
-
 
     //=========================================================================
     template <std::size_t, std::size_t>
