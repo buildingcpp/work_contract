@@ -31,6 +31,37 @@ void example_work
 
 
 //=============================================================================
+void example_blocking_work
+(
+    // 1. create work contract group
+    // 2. create work contract
+    // 3. schedule work contract
+    // 4. wait until work contract has been invoked
+)
+{
+    std::cout << "===============================\nexample_work:\n";
+    std::atomic<bool> contractInvoked{false};
+
+    // create work contract group
+    bcpp::blocking_work_contract_group workContractGroup;
+
+    // create async worker thread to service scheduled contracts
+    std::jthread workerThread([&](){workContractGroup.execute_next_contract();});
+
+    // create a work contract
+    auto workContract = workContractGroup.create_contract([&](auto & token){std::cout << "work invoked\n"; contractInvoked = true;});
+
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::cout << "scheduling contract\n";
+    workContract.schedule(); // schedule the contract
+
+    // wait until contract has been invoked
+    while (!contractInvoked)
+        ;
+}
+
+
+//=============================================================================
 void example_release
 (
     // 1. create work contract group
@@ -105,6 +136,7 @@ int main
 )
 {
     example_work();
+    example_blocking_work();
     example_release();
     example_redundant_schedule_is_ignored();
 

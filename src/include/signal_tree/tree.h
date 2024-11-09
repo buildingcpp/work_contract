@@ -56,22 +56,24 @@ namespace bcpp
             std::uint64_t requested
         ) 
         {
-            constexpr std::array<std::uint64_t, 14> valid
+            constexpr std::array<std::uint64_t, 16> valid
                 {
-                    64,
-                    64 << 3,  
-                    64 << 5,  
-                    64 << 7, 
-                    64 << 9,  
-                    64 << 11,
-                    64 << 12,
-                    64 << 13,
-                    64 << 14,
-                    64 << 15,
-                    64 << 16,
-                    64 << 17,
-                    64 << 18,
-                    64 << 19
+                    64,             // 2^6
+                    64 << 3,        // 2^9
+                    64 << 5,        // 2^11
+                    64 << 7,        // 2^13
+                    64 << 9,        // 2^15
+                    64 << 11,       // 2^17
+                    64 << 12,       // 2^18
+                    64 << 13,       // 2^19
+                    64 << 14,       // 2^20
+                    64 << 15,       // 2^21
+                    64 << 16,       // 2^22
+                    64 << 17,       // 2^23
+                    64 << 18,       // 2^24
+                    64 << 19,       // 2^25
+                    64 << 20,       // 2^26
+                    64 << 21        // 2^27
                 };
             for (auto v : valid)
                 if (v >= requested)
@@ -95,7 +97,7 @@ namespace bcpp
 
             static_assert(select_tree_size(capacity) == capacity, "invalid signal_tree capacity");
 
-            bool set
+            std::pair<bool, bool> set
             (
                 signal_index
             ) noexcept;
@@ -103,7 +105,7 @@ namespace bcpp
             bool empty() const noexcept;
 
             template <template <std::uint64_t, std::uint64_t> class = default_selector>
-            signal_index select
+            std::pair<signal_index, bool> select
             (
                 std::uint64_t
             ) noexcept;
@@ -125,7 +127,7 @@ namespace bcpp
 
 //=============================================================================
 template <std::size_t N>
-inline bool bcpp::implementation::signal_tree::tree<N>::set
+inline std::pair<bool, bool> bcpp::implementation::signal_tree::tree<N>::set
 (
     // set the leaf node associated with the index to 1
     signal_index signalIndex
@@ -155,7 +157,9 @@ inline auto bcpp::implementation::signal_tree::tree<N>::select
     // select and return the index of a leaf which is 'set'
     // return invalid_signal_index if no leaf is 'set' (empty tree)
     std::uint64_t bias
-) noexcept -> signal_index
+) noexcept -> std::pair<signal_index, bool>
 {
+    static auto constexpr number_of_bias_bits = (65 - minimum_bit_count(capacity));
+    bias <<= number_of_bias_bits;
     return rootLevel_. template select<select_function>(bias);
 }

@@ -37,14 +37,13 @@ namespace bcpp::implementation
         {
             inline auto operator()
             (
-                std::uint64_t biasFlags,
+                std::uint64_t,
                 std::uint64_t counters
             ) const noexcept -> signal_index
             {
                 if constexpr (bits_per_counter == 1)
                 {
-                    auto ret = (counters > 0) ? std::countl_zero(counters) : ~0ull;
-                    return ret;
+                    return (counters > 0) ? std::countl_zero(counters) : ~0ull;
                 }
                 else
                 {
@@ -52,7 +51,7 @@ namespace bcpp::implementation
                     // with a expression fold as total counters is never more than 8 and often 4 or 2.
                     auto selected = ~0ull;
                     auto max = 0ull;
-                    static auto constexpr counter_mask = ((1ull << bits_per_counter) - 1);
+                    /*static*/ auto /*constexpr*/ counter_mask = ((1ull << bits_per_counter) - 1);
                     for (auto i = 0ull; i < total_counters; ++i)
                     {
                         if ((counters & counter_mask) > max)
@@ -195,7 +194,6 @@ namespace bcpp::implementation
 
         using signal_tree_type = bcpp::signal_tree<64>;
         static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
-        static auto constexpr bias_shift = (64 - minimum_bit_count(signal_tree_capacity - 1)); 
 
         std::uint64_t                                                   subTreeCount_;
 
@@ -223,6 +221,11 @@ namespace bcpp::implementation
 
         static thread_local std::uint64_t                               tls_biasFlags_;
 
+        std::atomic<std::int64_t>                                       nonZeroCounter_{0};
+
+        void decrement_non_zero_counter();
+        void increment_non_zero_counter();
+
         struct 
         {
             std::mutex mutable              mutex_;
@@ -236,16 +239,13 @@ namespace bcpp::implementation
 
             bool wait(work_contract_group const * owner) const
             {
-                return false;  // TODO: restore 
-                /*
-                if (owner->signalTree_.empty())
+                if (owner->nonZeroCounter_ == 0)
                 {
                     std::unique_lock uniqueLock(mutex_);
-                    conditionVariable_.wait(uniqueLock, [owner](){return ((!owner->signalTree_.empty()) || (owner->stopped_));});
+                    conditionVariable_.wait(uniqueLock, [owner](){return ((owner->nonZeroCounter_ != 0) || (owner->stopped_));});
                     return (!owner->stopped_);
                 }
                 return true;
-                */
             }
 
             bool wait_for
@@ -254,16 +254,13 @@ namespace bcpp::implementation
                 std::chrono::nanoseconds duration
             ) const
             {                
-                return false;  // TODO: restore 
-                /*
-                if (owner->signalTree_.empty())
+                if (owner->nonZeroCounter_ == 0)
                 {
                     std::unique_lock uniqueLock(mutex_);
-                    auto waitSuccess = conditionVariable_.wait_for(uniqueLock, duration, [owner]() mutable{return ((!owner->signalTree_.empty()) || (owner->stopped_));});
+                    auto waitSuccess = conditionVariable_.wait_for(uniqueLock, duration, [owner]() mutable{return ((owner->nonZeroCounter_ != 0) || (owner->stopped_));});
                     return ((!owner->stopped_) && (waitSuccess));
                 }
                 return true;
-                */
             }
 
         } waitableState_;
@@ -373,6 +370,27 @@ inline auto bcpp::implementation::work_contract_group<T>::create_contract
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
+inline void bcpp::implementation::work_contract_group<T>::increment_non_zero_counter
+(
+)
+{
+    if (nonZeroCounter_++ == 0)
+        waitableState_.notify_all();
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
+inline void bcpp::implementation::work_contract_group<T>::decrement_non_zero_counter
+(
+)
+{
+    --nonZeroCounter_;
+}
+
+
+//=============================================================================
+template <bcpp::synchronization_mode T>
 inline auto bcpp::implementation::work_contract_group<T>::get_tree_and_signal_index
 (
     work_contract_id workContractId
@@ -422,12 +440,18 @@ inline void bcpp::implementation::work_contract_group<T>::set_contract_signal
     work_contract_id contractId
 )
 {
-    auto [treeIndex, signalIndex] = get_tree_and_signal_index(contractId);
-    signalTree_[treeIndex].set(signalIndex);
-    if constexpr (mode == synchronization_mode::blocking)
+    if constexpr (mode == synchronization_mode::non_blocking)
     {
-        // this should be done more graceful but for now ...
-         waitableState_.notify_all();
+        auto [treeIndex, signalIndex] = get_tree_and_signal_index(contractId);
+        signalTree_[treeIndex].set(signalIndex);
+    }
+    else
+    {
+        auto [treeIndex, signalIndex] = get_tree_and_signal_index(contractId);
+        if (auto [treeWasEmpty, success] = signalTree_[treeIndex].set(signalIndex); treeWasEmpty)
+        {
+            increment_non_zero_counter();
+        }
     }
 }
 
@@ -465,11 +489,15 @@ inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_
     for (auto i = 0ull; i < signalTree_.size(); ++i)
     {
         subTreeIndex &= subTreeMask_;
-        if (auto signalIndex = signalTree_[subTreeIndex].select(biasFlags << bias_shift); signalIndex != invalid_signal_index)
+        if (auto [signalIndex, treeIsEmpty] = signalTree_[subTreeIndex].select(biasFlags); signalIndex != invalid_signal_index)
         {
+            if constexpr (mode == synchronization_mode::blocking)
+            {
+                if (treeIsEmpty)
+                    decrement_non_zero_counter();
+            }
             work_contract_id workContractId(subTreeIndex * signal_tree_capacity);
             workContractId |= signalIndex;
-
             std::uint64_t b = (1ull << std::countr_zero(signal_tree::select_bias_hint ^ biasFlags)) & (signal_tree_type::capacity - 1);
             if (b == 0)
             {

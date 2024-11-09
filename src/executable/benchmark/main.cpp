@@ -29,7 +29,7 @@ int cores[] = {16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31};
 int mainCpu = 0;
 
 static auto constexpr test_duration = 1s;
-static auto constexpr max_tasks = 16384;
+static auto constexpr max_tasks = (1 << 13);
 static auto constexpr max_threads = std::extent_v<decltype(cores)>;
 
 // containers for gathering stats during test
@@ -256,11 +256,11 @@ int main
         std::string line = "==================================================================================\n";
         std::cout << fmt::format("\n\nTask {}, average task duration is {:.2f} ns\n", title, get_task_duration(task));
         auto header = fmt::format("{:<15}{:<20}{:<25}{:<10}{:<10}\n", "Thread Count:", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:");
-
+/*
         std::cout << "\n" << green << line << "Boost lock-free MPMC queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::boost_lockfree>(i, task);
-
+*/
         std::cout << "\n" << green << line << "TBB concurrent_queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::tbb>(i, task);
@@ -276,6 +276,10 @@ int main
         std::cout << "\n" << green << line << "Work Contract:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::work_contract>(i, task);
+
+        std::cout << "\n" << green << line << "Blocking Work Contract:\n" << header << line << defaultColor;
+        for (auto i = 2ull; i <= max_threads; ++i)
+            test_algorithm<algorithm::blocking_work_contract>(i, task);
     };
 
     run_test(hash_task<0>, "maximum contention"); // approx 1.5ns

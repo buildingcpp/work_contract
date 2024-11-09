@@ -1,19 +1,19 @@
 #pragma once
 
 #include <tbb/concurrent_queue.h>
-#include <include/boost/lockfree/queue.hpp>
+//#include <include/boost/lockfree/queue.hpp>
 #include <concurrentqueue.h>
 #include <mpmc_queue.h>
 #include <library/work_contract.h>
 
 
-enum class algorithm {boost_lockfree, tbb, moody_camel, es, work_contract};
+enum class algorithm {/*boost_lockfree, */tbb, moody_camel, es, work_contract, blocking_work_contract};
 
 
 template <algorithm, typename>
 struct container;
 
-
+/*
 template <typename T> 
 struct container<algorithm::boost_lockfree, T>
 {
@@ -23,7 +23,7 @@ struct container<algorithm::boost_lockfree, T>
     auto pop(){std::int32_t result; while (!queue_.pop(result)); return result;}
     boost::lockfree::queue<std::int32_t> queue_;
 };
-
+*/
 
 template <typename T> 
 struct container<algorithm::tbb, T>
@@ -62,10 +62,21 @@ template <typename T>
 struct container<algorithm::work_contract, T>
 {
     using task_type = bcpp::work_contract;
-    container(std::size_t capacity):workContractGroup_(capacity * 4){}
-    auto create_contract(auto && task){return workContractGroup_.create_contract(task, bcpp::work_contract::initial_state::scheduled);}
+    container(std::size_t capacity):workContractGroup_(((capacity * 4)  < 1024) ? 1024 : capacity * 4){}
+    auto create_contract(auto && task){return workContractGroup_.create_contract(task, task_type::initial_state::scheduled);}
     auto execute_next_contract(){return workContractGroup_.execute_next_contract();}
     bcpp::work_contract_group workContractGroup_;
+};
+
+
+template <typename T> 
+struct container<algorithm::blocking_work_contract, T>
+{
+    using task_type = bcpp::blocking_work_contract;
+    container(std::size_t capacity):workContractGroup_(((capacity * 4)  < 1024) ? 1024 : capacity * 4){}
+    auto create_contract(auto && task){return workContractGroup_.create_contract(task, task_type::initial_state::scheduled);}
+    auto execute_next_contract(){return workContractGroup_.execute_next_contract();}
+    bcpp::blocking_work_contract_group workContractGroup_;
 };
 
 
@@ -75,7 +86,7 @@ class test_harness : private container<T, T_>
 {
 public:
 
-    static auto constexpr is_queue = (T != algorithm::work_contract);
+    static auto constexpr is_queue = ((T != algorithm::work_contract) && (T != algorithm::blocking_work_contract));
     using task_type = typename container<T, T_>::task_type;
 
     test_harness(std::size_t capacity) : container<T, T_>(capacity){}

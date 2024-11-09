@@ -40,7 +40,7 @@ struct producer
                 [this, consumer]
                 (
                     auto & contractToken
-                )
+                ) mutable
                 {
                     consumer(pipe_.pop()); 
                     if (!pipe_.empty()) 
@@ -51,6 +51,8 @@ struct producer
     }
 
     bool empty() const{return pipe_.empty();}
+
+    auto operator()(auto input){produce(input * 5);}
 
 private:
     pipe_type pipe_;
@@ -70,10 +72,14 @@ int main()
 
     using pipe_type = bcpp::spsc_fixed_queue<int>;
     producer<pipe_type> myProducer(1024);
+    producer<pipe_type> myMultiplier(1024);
 
-    auto myConsumer = [](auto value){std::cout << "consumed " << value << "\n";};
-    myProducer.attach_consumer(myConsumer, wcg);
-    
+//    auto myConsumer = [](auto value){std::cout << "consumed " << value << "\n";};
+//    myProducer.attach_consumer(myConsumer, wcg);
+
+    myMultiplier.attach_consumer([](auto value){std::cout << value << "\n";}, wcg);
+    myProducer.attach_consumer(myMultiplier, wcg);
+
     auto start = std::chrono::system_clock::now();
     for (auto i = 0; i < 16; ++i)
         while (!myProducer.produce(i))
