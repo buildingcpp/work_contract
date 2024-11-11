@@ -89,7 +89,6 @@ inline std::pair<bool, bool> bcpp::implementation::signal_tree::node<T>::set
 ) noexcept
 {
     static auto constexpr set_successful = true;
-    static auto constexpr set_unsuccessful = false;
 
     auto counterIndex = signalIndex / counter_capacity;
 

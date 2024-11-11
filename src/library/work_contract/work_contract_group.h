@@ -576,7 +576,7 @@ inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_
 ) requires (mode == synchronization_mode::blocking)
 {
     if (waitableState_.wait_for(this, duration))
-        return this->execute_next_contact(biasFlags);
+        return this->execute_next_contract(biasFlags);
     return ~0ull;
 }
 
