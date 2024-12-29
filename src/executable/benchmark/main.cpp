@@ -103,7 +103,7 @@ auto hash_task()
 {
     static auto constexpr str = "guess what? chicken butt!";
     auto volatile n = 0;
-    for (auto i = 0; i < N; ++i)
+    for (auto i = 0ull; i < N; ++i)
         n *= std::hash<std::string>()(str);
     return n;
 };
@@ -161,8 +161,6 @@ auto execute_test
 )
 {
     create_worker_threads(numWorkerThreads, threadFunction);
-
-    auto numThreads = testThreads.size();
 
     // start test
     auto startTime = std::chrono::system_clock::now();
@@ -256,11 +254,7 @@ int main
         std::string line = "==================================================================================\n";
         std::cout << fmt::format("\n\nTask {}, average task duration is {:.2f} ns\n", title, get_task_duration(task));
         auto header = fmt::format("{:<15}{:<20}{:<25}{:<10}{:<10}\n", "Thread Count:", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:");
-/*
-        std::cout << "\n" << green << line << "Boost lock-free MPMC queue:\n" << header << line << defaultColor;
-        for (auto i = 2ull; i <= max_threads; ++i)
-            test_algorithm<algorithm::boost_lockfree>(i, task);
-*/
+
         std::cout << "\n" << green << line << "TBB concurrent_queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::tbb>(i, task);

@@ -1,29 +1,17 @@
 #pragma once
 
 #include <tbb/concurrent_queue.h>
-//#include <include/boost/lockfree/queue.hpp>
 #include <concurrentqueue.h>
 #include <mpmc_queue.h>
 #include <library/work_contract.h>
 
 
-enum class algorithm {/*boost_lockfree, */tbb, moody_camel, es, work_contract, blocking_work_contract};
+enum class algorithm {tbb, moody_camel, es, work_contract, blocking_work_contract};
 
 
 template <algorithm, typename>
 struct container;
 
-/*
-template <typename T> 
-struct container<algorithm::boost_lockfree, T>
-{
-    using task_type = T;
-    container(std::size_t capacity):queue_(capacity * 2){}
-    void push(std::int32_t value){while (!queue_.push(value));}
-    auto pop(){std::int32_t result; while (!queue_.pop(result)); return result;}
-    boost::lockfree::queue<std::int32_t> queue_;
-};
-*/
 
 template <typename T> 
 struct container<algorithm::tbb, T>

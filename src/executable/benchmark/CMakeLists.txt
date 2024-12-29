@@ -6,7 +6,7 @@ target_include_directories(benchmark
 PRIVATE
     ${_concurrentqueue_src_path}
     ${_lockfree_src_path}
-    ${_tbb_src_path}
+    ${_tbb_src_path}/include
     ${_lockfree_mpmc_queue_src_path}
     ${_googletest_src_path}
     ${_fmt_src_path}/include
