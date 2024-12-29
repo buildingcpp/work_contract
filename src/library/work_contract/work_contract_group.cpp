@@ -191,61 +191,6 @@ bool bcpp::implementation::work_contract_group<T>::release_token::is_valid
     return ((bool)workContractGroup_);
 }
 
-/*
-//=============================================================================
-template <bcpp::synchronization_mode T>
-bcpp::implementation::work_contract_group<T>::exception_token::exception_token 
-(
-    work_contract_id contractId,
-    std::exception_ptr exception,
-    work_contract_group<T> & owner
-):
-    contractId_(contractId),
-    exception_(exception),
-    owner_(owner)
-{
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_group<T>::exception_token::release
-(
-)
-{
-    owner_.release(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-void bcpp::implementation::work_contract_group<T>::exception_token::schedule
-(
-)
-{
-    owner_.schedule(contractId_);
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto bcpp::implementation::work_contract_group<T>::exception_token::get_contract_id
-(
-) const -> work_contract_id
-{
-    return contractId_;
-}
-
-
-//=============================================================================
-template <bcpp::synchronization_mode T>
-auto bcpp::implementation::work_contract_group<T>::exception_token::get_exception
-(
-) const -> std::exception_ptr
-{
-    return exception_;
-}
-*/
 
 //=============================================================================
 template <bcpp::synchronization_mode T>
