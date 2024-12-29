@@ -24,7 +24,7 @@ int test_multi_threaded
 
         // do multithreaded set of all signals in the tree
         std::vector<std::jthread> threads(num_threads);
-        auto threadIndex = 0;
+        auto threadIndex = 0ull;
         std::atomic<std::size_t> setErrorCount{0};
         for (auto & thread : threads)
         {
@@ -113,7 +113,7 @@ int test_single_threaded
         // populate tree.  first signal set should return that the tree was empty 
         // prior to the call to set.  all other calls to set additional signals should
         // return that the tree was NOT empty prior to that call to set.
-        for (auto i = 0; i < actual_signal_tree_capacity; ++i)
+        for (auto i = 0ull; i < actual_signal_tree_capacity; ++i)
         {
             auto wasEmpty = signalTree->empty();
             auto [transitionedToNonEmpty, success] = signalTree->set(i);
@@ -128,7 +128,7 @@ int test_single_threaded
         //=========================================================================
         // repeat above.  But since signals are all set, each call to set() should
         // return 'not transitioned from empty' and 'failure to set'
-        for (auto i = 0; i < actual_signal_tree_capacity; ++i)
+        for (auto i = 0ull; i < actual_signal_tree_capacity; ++i)
         {
             auto [transitionedToNonEmpty, success] = signalTree->set(i);
             if (transitionedToNonEmpty)
@@ -148,7 +148,7 @@ int test_single_threaded
         // selected from the tree (the selection caused tree to become empty)
         std::vector<bool> selected(actual_signal_tree_capacity);
         std::fill(selected.begin(), selected.end(), false);
-        for (auto i = 0; i < actual_signal_tree_capacity; ++i)
+        for (auto i = 0ull; i < actual_signal_tree_capacity; ++i)
         {
             auto [signalId, transitionedToEmpty] = signalTree->select(i);
             if (signalId >= actual_signal_tree_capacity)
