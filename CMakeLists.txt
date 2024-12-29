@@ -17,7 +17,7 @@ if (CMAKE_BUILD_TYPE STREQUAL "Debug")
         -march=native
         -fPIE
         -Wno-changes-meaning # tbb 
-        #-Wall
+        -Wall
     )
 else()
     add_compile_options(
@@ -26,7 +26,7 @@ else()
         -march=native
         -fPIE
         -Wno-changes-meaning # tbb
-        #-Wall
+        -Wall
     )
 endif()
 
