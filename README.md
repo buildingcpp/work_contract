@@ -91,7 +91,7 @@ Work Contract Groups do something similar.  A Work Contract Group doesn't contai
 So there are many root nodes and this helps to spread the contention and reduce it.  In practice I've found that if there are four signal trees per thread then contention is typically reduced
 to virtually zero.  
 
-But the advantages of many signal trees is greater than the similar approach of many sub queues.  For one, a signal tree gives access to all root nodes at all times whereas the queue gives 
+But the advantages of many signal trees is greater than the similar approach of many sub queues.  For one, a signal tree gives access to all leaf nodes at all times whereas the queue gives 
 access only to the front.  More importantly, threads can access every subtree (scanning the root nodes like iterating over a vector) as they look for scheduled contracts.  But as pointed out
 above, the same is not true for multiple subqueues.  Mostly because for tasks the ordering must be preserved in the queue whereas with work contracts, the ordering must be preserved only if an
 individual work contract has an ingree or egress queue - which removes the problem of causing contention on the signal tree root node entirely.
