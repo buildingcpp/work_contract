@@ -4,5 +4,7 @@ target_include_directories(7_produce_consume PUBLIC ${_work_contract_dir}/src ${
 
 target_link_libraries(7_produce_consume 
 PRIVATE
+    pthread
+    rt
     work_contract
 )

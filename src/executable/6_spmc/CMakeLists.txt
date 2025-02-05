@@ -4,5 +4,7 @@ target_include_directories(6_spmc PUBLIC ${_work_contract_dir}/src ${_include_di
 
 target_link_libraries(6_spmc 
 PRIVATE
+    pthread
+    rt
     work_contract
 )

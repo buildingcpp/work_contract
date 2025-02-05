@@ -6,6 +6,7 @@ add_library(work_contract
 
 target_link_libraries(work_contract 
     pthread
+    rt
 )
 
 

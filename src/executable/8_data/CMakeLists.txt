@@ -4,5 +4,7 @@ target_include_directories(8_data PUBLIC ${_work_contract_dir}/src ${_include_di
 
 target_link_libraries(8_data 
 PRIVATE
+    pthread
+    rt
     work_contract
 )

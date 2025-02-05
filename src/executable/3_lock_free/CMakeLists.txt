@@ -4,5 +4,7 @@ target_include_directories(3_lock_free PUBLIC ${_work_contract_dir}/src ${_inclu
 
 target_link_libraries(3_lock_free 
 PRIVATE
+    pthread
+    rt
     work_contract
 )

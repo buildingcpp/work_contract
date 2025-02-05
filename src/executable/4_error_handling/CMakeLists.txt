@@ -4,5 +4,7 @@ target_include_directories(4_error_handling PUBLIC ${_work_contract_dir}/src ${_
 
 target_link_libraries(4_error_handling 
 PRIVATE
+    pthread
+    rt
     work_contract
 )

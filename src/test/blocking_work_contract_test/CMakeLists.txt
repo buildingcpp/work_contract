@@ -6,6 +6,7 @@ add_executable(blocking_work_contract_test
 
 target_link_libraries(blocking_work_contract_test 
     pthread
+    rt
     work_contract
 )
 

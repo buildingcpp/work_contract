@@ -6,6 +6,7 @@ add_executable(signal_tree_test
 
 target_link_libraries(signal_tree_test 
     pthread
+    rt
     work_contract
 )
 

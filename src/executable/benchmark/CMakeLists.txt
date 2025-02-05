@@ -14,6 +14,8 @@ PRIVATE
 
 target_link_libraries(benchmark 
 PRIVATE
+    pthread
+    rt
     work_contract
     tbb_static
     fmt

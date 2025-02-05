@@ -4,5 +4,7 @@ target_include_directories(2_multi_invocation PUBLIC ${_work_contract_dir}/src $
 
 target_link_libraries(2_multi_invocation 
 PRIVATE
+    pthread
+    rt
     work_contract
 )
