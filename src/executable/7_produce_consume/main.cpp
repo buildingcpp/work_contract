@@ -37,14 +37,11 @@ struct producer
         if (consumeContract_)
             return false;
         consumeContract_ = wcg.create_contract(
-                [this, consumer]
-                (
-                    auto & contractToken
-                ) mutable
+                [this, consumer]() mutable
                 {
                     consumer(pipe_.pop()); 
                     if (!pipe_.empty()) 
-                        contractToken.schedule();
+                        bcpp::this_contract::schedule();
                 },
                 pipe_.empty() ? bcpp::work_contract::initial_state::unscheduled : bcpp::work_contract::initial_state::scheduled);
         return consumeContract_.is_valid();

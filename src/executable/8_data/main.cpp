@@ -22,10 +22,7 @@ void example_data
     bcpp::spsc_fixed_queue<std::pair<int, int>> dataQueue(1024);
 
     auto workContract = workContractGroup.create_contract(
-                [&]
-                (
-                    auto & token
-                )
+                [&]()
                 {
                     std::pair<int, int> data;
                     if (dataQueue.try_pop(data))
@@ -34,9 +31,9 @@ void example_data
                         std::cout << a << " * " << b << " = " << (a * b) << std::endl;
                     }
                     if (!dataQueue.empty())
-                        token.schedule();
+                        bcpp::this_contract::schedule();
                     else
-                        token.release();
+                        bcpp::this_contract::release();
                 });
 
     for (auto i = 0; i < 32; ++i)

@@ -52,11 +52,11 @@ int main
     char const **
 )
 {
-    static auto constexpr max_signal_count = 1000000;
+    static auto constexpr max_signal_count = 100000;
 
     set_cpu_affinity(mainCpu);
 
-    for (auto num_threads = 1ull; num_threads <= 1; num_threads++)
+    for (auto num_threads = 1ull; num_threads <= 10; num_threads++)
     {
         using signal_tree_type = bcpp::signal_tree<max_signal_count>;
         auto signalTree = std::make_unique<signal_tree_type>();
@@ -85,15 +85,18 @@ int main
                     auto base = (threadIndex * opsPerThread);
                     for (auto i = 0ull; i < opsPerThread; ++i)
                     {
-                        localTotalSet += signalTree->set(base + i); // linear set from base
+                        auto [wasSet, isSet] = signalTree->set(base + i); // linear set from base
+                        localTotalSet += isSet;
                     }
                     
                     // set all signals
-                    //base = threadIndex;
+                    base = threadIndex;
                     for (auto i = 0ull; i < opsPerThread; ++i)
                     {
-                     //   auto signalNumber = signalTree->select(base + i); // linear reset (no contention)
-                        auto signalNumber = signalTree->select(base); base += num_threads; // stride reset (maximum contention)
+                      //auto [signalNumber, emptyAfterSelect] = signalTree->select(base + i); // linear reset (no contention)
+                        auto [signalNumber, emptyAfterSelect] = signalTree->select(base); base += num_threads; // stride reset (maximum contention)
+                        if (signalNumber == bcpp::invalid_signal_index)
+                            std::cout << "invalid signal returned\n";
                         localTotalSelected += (signalNumber != bcpp::invalid_signal_index);
                     }
 
@@ -123,7 +126,7 @@ int main
         //    std::cout << "Success - total singals set and detected = " << totalSelected << "\n";
 
  //       std::cout << "Elapsed time: " << sec << " sec\n";
-        std::cout << num_threads << ", " << (std::uint64_t)(totalSet / sec) << "\n";
+        std::cout << "num threads = " << num_threads << ", sets/second = " << (std::uint64_t)(totalSet / sec) << "\n";
     //    std::cout << ((double)elapsed.count() / totalSelected) << " ns per operation\n";
     }
     return 0;

@@ -21,21 +21,19 @@ void example_exception
             (
                 // increment n by one with each invocation
                 // throw exception when n is odd
-                auto & self
             ) mutable 
             {
                 ++n;
                 std::cout << "n = " << n << "\n"; 
                 if ((n % 2) == 1) 
                     throw std::runtime_error("n is odd");  
-                self.schedule();
+                bcpp::this_contract::schedule();
             };
 
     auto exceptionHandler = [&, exceptionCount = 0]
             (
                 // handle the exception and less the contract re-schedule
                 // upon the third exception, give up and release the contract instead
-                auto & workContractToken,
                 auto currentException
             ) mutable
             {
@@ -46,15 +44,15 @@ void example_exception
                 }
                 catch (std::exception const & exception)
                 {
-                    std::cout << "work contract [id = " << workContractToken.get_contract_id() << "] caught exception: " << exception.what() << "\n";
+                    std::cout << "work contract [id = " << bcpp::this_contract::get_id() << "] caught exception: " << exception.what() << "\n";
                 }
 
                 if (++exceptionCount >= 3)
                 {
                     std::cout << "third exception.  releasing work contract\n";
-                    workContractToken.release();
+                    bcpp::this_contract::release();
                 }
-                workContractToken.schedule();
+                bcpp::this_contract::schedule();
             };
 
     auto workContract = workContractGroup.create_contract(workFunction, [](){}, 

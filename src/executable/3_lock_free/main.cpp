@@ -42,7 +42,7 @@ void example_lock_free
 
     // create a work contract
     std::uint64_t volatile errorCount = 0;
-    auto workFunction = [&, expected = 0](auto & contractToken) mutable
+    auto workFunction = [&, expected = 0ull]() mutable
             {
                 // work contracts are executed by a single thread (thread safe) regardless of how
                 // many threads are servicing the parent work contract group.
@@ -63,9 +63,9 @@ void example_lock_free
                     }
                     ++expected;
                     if (value == number_of_operations)
-                        contractToken.release(); // initiate self destruction
+                        bcpp::this_contract::release(); // initiate self destruction
                 }
-                contractToken.schedule();
+                bcpp::this_contract::schedule();
             };
 
     auto workContract = workContractGroup.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);

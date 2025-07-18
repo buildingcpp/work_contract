@@ -21,7 +21,7 @@ void example_work
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractGroup.execute_next_contract();});
 
     // create a work contract
-    auto workContract = workContractGroup.create_contract([&](auto & token){std::cout << "work invoked\n"; token.release();});
+    auto workContract = workContractGroup.create_contract([&](){std::cout << "work invoked\n"; bcpp::this_contract::release();});
     workContract.schedule(); // schedule the contract
 
     // wait until contract has been invoked
@@ -49,7 +49,7 @@ void example_blocking_work
     std::jthread workerThread([&](){workContractGroup.execute_next_contract();});
 
     // create a work contract
-    auto workContract = workContractGroup.create_contract([&](auto & token){std::cout << "work invoked\n"; contractInvoked = true;});
+    auto workContract = workContractGroup.create_contract([&](){std::cout << "work invoked\n"; contractInvoked = true;});
 
     std::this_thread::sleep_for(std::chrono::seconds(1));
     std::cout << "scheduling contract\n";
@@ -80,7 +80,7 @@ void example_release
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractGroup.execute_next_contract();});
 
     // create a work contract and set initial state to scheduled in the same call
-    auto workFunction = [](auto & contractToken){std::cout << "work invoked\n"; contractToken.release();};
+    auto workFunction = [](){std::cout << "work invoked\n"; bcpp::this_contract::release();};
     auto releaseFunction = [](){std::cout << "release invoked\n";};
     auto workContract = workContractGroup.create_contract(workFunction, releaseFunction, bcpp::work_contract::initial_state::scheduled);
 
@@ -110,7 +110,7 @@ void example_redundant_schedule_is_ignored
     bcpp::work_contract_group workContractGroup;
 
     // create a work contract and set initial state to scheduled in the same call
-    auto workFunction = [n=0](auto & contractToken) mutable{std::cout << "work invocation count = " << ++n << "\n"; contractToken.release();};
+    auto workFunction = [n=0]() mutable{std::cout << "work invocation count = " << ++n << "\n"; bcpp::this_contract::release();};
     auto workContract = workContractGroup.create_contract(workFunction);
     workContract.schedule();
     workContract.schedule(); // scheduling an already scheduled work contract does nothing

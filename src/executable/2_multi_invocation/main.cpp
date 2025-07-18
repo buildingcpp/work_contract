@@ -24,12 +24,12 @@ void example_multi_invocation
     std::jthread workerThread([&](auto const & stopToken){while (!stopToken.stop_requested()) workContractGroup.execute_next_contract();});
 
     // create a work contract
-    auto workFunction = [n = invocation_count](auto & contractToken) mutable
+    auto workFunction = [n = invocation_count]() mutable
             {
                 std::cout << "n = " << n << "\n"; 
                 if (--n == 0) 
-                    contractToken.release();
-                contractToken.schedule();
+                    bcpp::this_contract::release();
+                bcpp::this_contract::schedule();
             };
     auto workContract = workContractGroup.create_contract(workFunction, bcpp::work_contract::initial_state::scheduled);
 

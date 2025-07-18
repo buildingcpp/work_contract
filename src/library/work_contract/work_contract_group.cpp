@@ -87,7 +87,7 @@ void bcpp::implementation::work_contract_group<T>::erase_contract
 (
     // after contract's release function is invoked, clean up anything related to the contract
     work_contract_id contractId
-)
+) noexcept
 {
     auto & contract = contracts_[contractId];
     contract.work_ = nullptr;
@@ -111,8 +111,8 @@ void bcpp::implementation::work_contract_group<T>::process_exception
 {
     if (exception_[contractId])
     {
-        work_contract_token workContractToken(contractId, *this);
-        exception_[contractId](workContractToken, exception);
+    //    work_contract_token workContractToken(contractId, *this);
+        exception_[contractId](/*workContractToken, */exception);
     }
     else
     {

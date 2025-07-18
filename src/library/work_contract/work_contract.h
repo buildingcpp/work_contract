@@ -64,7 +64,7 @@ namespace bcpp::implementation
 
         work_contract_group_type *   owner_{};
 
-        std::shared_ptr<typename work_contract_group_type::release_token> releaseToken_;
+        std::atomic<std::shared_ptr<typename work_contract_group_type::release_token>> releaseToken_;
 
         id_type                 id_{};
 
@@ -109,12 +109,11 @@ inline bcpp::implementation::work_contract<T>::work_contract
     work_contract && other
 ):
     owner_(other.owner_),
-    releaseToken_(other.releaseToken_),
+    releaseToken_(other.releaseToken_.exchange(nullptr)),
     id_(other.id_)
 {
     other.owner_ = {};
     other.id_ = {};
-    other.releaseToken_ = {};
 }
 
     
@@ -131,11 +130,9 @@ inline auto bcpp::implementation::work_contract<T>::operator =
 
         owner_ = other.owner_;
         id_ = other.id_;
-        releaseToken_ = other.releaseToken_;
-        
+        releaseToken_ = other.releaseToken_.exchange(nullptr);
         other.owner_ = {};
         other.id_ = {};
-        other.releaseToken_ = {};
     }
     return *this;
 }
@@ -177,7 +174,7 @@ inline bool bcpp::implementation::work_contract<T>::release
 (
 )
 {
-    if (auto releaseToken = std::exchange(releaseToken_, nullptr); releaseToken)
+    if (auto releaseToken = releaseToken_.exchange(nullptr); releaseToken)
     {
         releaseToken->schedule(*this);
         owner_ = {};
@@ -193,7 +190,9 @@ inline bool bcpp::implementation::work_contract<T>::is_valid
 (
 ) const
 {
-    return ((releaseToken_) && (releaseToken_->is_valid()));
+    if (auto releaseToken = releaseToken_.load(); releaseToken)
+        return releaseToken->is_valid();
+    return false;
 }
 
 

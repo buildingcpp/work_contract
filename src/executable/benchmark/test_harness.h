@@ -97,10 +97,10 @@ public:
             // work contracts are not queues and therefore the task is actaully
             // stored within the work contract itself.
             tasks_.push_back(this->create_contract(
-                [task, taskId](auto & token)
+                [task, taskId]()
                 {
                     task();                         // execute the task
-                    token.schedule();               // reschedule this contract (like pushing to back of work queue again)
+                    bcpp::this_contract::schedule();               // reschedule this contract (like pushing to back of work queue again)
                     tlsExecutionCount[taskId]++;
                 }));
         }

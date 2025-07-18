@@ -23,11 +23,11 @@ int main
         workerThread = std::jthread([&](auto token){while (!token.stop_requested()) wcg.execute_next_contract();});
 
     // async consume
-    auto wc = wcg.create_contract([&](auto & token)
+    auto wc = wcg.create_contract([&]()
             {
                 std::cout << "thread " << std::this_thread::get_id() << " consumed " << queue.pop() << "\n";
                 if (!queue.empty())
-                    token.schedule();
+                    bcpp::this_contract::schedule();
             });
 
     // produce
