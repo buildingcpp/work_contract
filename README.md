@@ -8,7 +8,7 @@ Work Contract is a high-performance C++ library for managing repeatable, schedul
 
 Traditional concurrency primitives like futures, promises, or thread pools often involve overhead from locking or polling. Work Contract addresses this by offering a contract-based model where tasks are represented as lightweight objects that can be scheduled, released, and rescheduled. It supports custom callbacks for execution, release, and exception handling, with built-in efficiency for large-scale task management (via signal trees). The library is designed for scenarios requiring fine-grained control over task lifecycles without heavy synchronization.
 
-For detailed design rationale, examples, and benchmarks, see [DESIGN.md](DESIGN.md) and [EXAMPLES.md](EXAMPLES.md).
+For detailed design rationale, examples, future work, and benchmarks, see [DESIGN.md](DESIGN.md), [FUTURE.md](FUTURE.md) and [EXAMPLES.md](EXAMPLES.md).
 
 ## Requirements
 
