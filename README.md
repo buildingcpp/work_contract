@@ -62,7 +62,7 @@ Basic "Hello World" example (see [EXAMPLES.md](EXAMPLES.md) for more):
 ```cpp
 #include <library/work_contract.h>
 #include <iostream>
-#include <jthread>
+#include <thread>
 
 int main() 
 {
