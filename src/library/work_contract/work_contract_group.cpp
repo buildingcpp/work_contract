@@ -54,6 +54,15 @@ void bcpp::implementation::work_contract_group<T>::stop
         for (auto & releaseToken : releaseToken_)
             if ((bool)releaseToken)
                 releaseToken->orphan();
+        if constexpr (mode == synchronization_mode::blocking)
+        {
+            // this addresses the problem of stopping the group while worker threads
+            // are waiting indefinitely for a contract to be scheduled.  Since
+            // the group is stopped no such scheduling will ever happen so we
+            // give any waiting worker threads a chance to give up the wait now.
+            std::unique_lock uniqueLock(mutex_);
+            waitableState_.notify_all();
+        }
     }
 }
 

@@ -185,7 +185,12 @@ namespace bcpp::implementation
             work_contract_id
         ) const;
 
-        using signal_tree_type = bcpp::signal_tree<64>;
+        // internal signal tree capacity can be tuned for different performance needs
+        static auto constexpr minimum_latency_signal_tree_capacity = 64;
+        static auto constexpr general_purpose_signal_tree_capacity = 512;
+        static auto constexpr default_signal_tree_capacity = minimum_latency_signal_tree_capacity;
+        
+        using signal_tree_type = bcpp::signal_tree<default_signal_tree_capacity>;
         static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
 
         std::uint64_t                                                   subTreeCount_;
@@ -236,7 +241,7 @@ namespace bcpp::implementation
                 {
                     std::unique_lock uniqueLock(mutex_);
                     conditionVariable_.wait(uniqueLock, [owner](){return ((owner->nonZeroCounter_ != 0) || (owner->stopped_));});
-                    return (!owner->stopped_);
+                    return (not owner->stopped_);
                 }
                 return true;
             }

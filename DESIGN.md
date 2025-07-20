@@ -47,6 +47,16 @@ In lock-free mode, scheduling is wait-free, relying on atomic operations without
 - **Blocking**: Employs condition variables and counters for efficient waiting, suitable for low-load or battery-constrained environments.
 - **Rationale**: Dual modes let users tailor performance to workload. The bool from `signal_tree::select` supports blocking mode’s `notify_all` by tracking tree emptiness.
 
+#### Caveats in Blocking Mode
+In blocking mode, by default `bcpp::blocking_work_contract_group::execute_next_contract()` waits infinitely while no contracts are scheduled.
+This can lead to an infinite hang for the worker thread which calls `execute_next_contract()` should no further contracts ever become scheduled.  i.e. the main thread
+joins the worker thread prior to exiting resulting in both threads hanging.
+Therefore, in blocking mode, it is essential that users must follow one of these practices:
+1. Use a timeout when waiting in `bcpp::blocking_work_contract_group::execute_next_contract(/*1s for example*/)` to periodically check for stop signals. 
+2. Call `group.stop()` to wake all blocked worker threads allowing them to exit their, otherwise, infinite wait.
+
+Though not strictly required it is considered best practice to terminate all worker threads which might call `execute_next_contract()` prior to destroying the work contract group or explicitly stopping it.
+
 ### Contract `release()` Functionality
 - **Power**: Release schedules an asynchronous cleanup callback and invalidates the contract, with async destruction as a major feature for non-blocking resource management. It’s idempotent via atomic flags.
 - **Rationale**: Explicit release empowers users to control task termination, enabling powerful patterns like self-terminating or error handling workflows. Async destruction ensures non-blocking cleanup, critical for low-latency systems. Combined with repeatability, it enables flexible workflows.

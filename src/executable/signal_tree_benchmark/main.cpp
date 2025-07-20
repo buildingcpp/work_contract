@@ -52,7 +52,7 @@ int main
     char const **
 )
 {
-    static auto constexpr max_signal_count = 100000;
+    static auto constexpr max_signal_count = 1000000;
 
     set_cpu_affinity(mainCpu);
 
