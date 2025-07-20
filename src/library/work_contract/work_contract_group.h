@@ -135,13 +135,13 @@ namespace bcpp::implementation
         friend class auto_erase_contract;
         friend class auto_clear_execute_flag;
 
-        using state_flags = std::int8_t;
+        using state_flags = std::uint64_t;
 
         struct alignas(64) contract
         {
-            static auto constexpr release_flag      = 0x00000004;
-            static auto constexpr execute_flag      = 0x00000002;
-            static auto constexpr schedule_flag     = 0x00000001;
+            static auto constexpr release_flag      = 0x00000004ull;
+            static auto constexpr execute_flag      = 0x00000002ull;
+            static auto constexpr schedule_flag     = 0x00000001ull;
         
             std::atomic<state_flags>    flags_;
             std::function<void()>       work_;
@@ -189,7 +189,7 @@ namespace bcpp::implementation
         static auto constexpr minimum_latency_signal_tree_capacity = 64;
         static auto constexpr general_purpose_signal_tree_capacity = 512;
         static auto constexpr default_signal_tree_capacity = minimum_latency_signal_tree_capacity;
-        
+
         using signal_tree_type = bcpp::signal_tree<default_signal_tree_capacity>;
         static auto constexpr signal_tree_capacity = signal_tree_type::capacity;
 
