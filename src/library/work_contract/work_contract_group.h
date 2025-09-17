@@ -494,7 +494,8 @@ inline std::uint64_t bcpp::implementation::work_contract_group<T>::execute_next_
             }
             work_contract_id workContractId(subTreeIndex * signal_tree_capacity);
             workContractId |= signalIndex;
-            std::uint64_t b = (1ull << std::countr_zero(signal_tree::select_bias_hint ^ biasFlags)) & (signal_tree_type::capacity - 1);
+            auto x = (signal_tree::select_bias_hint ^ biasFlags);
+            auto b = (x & (~x + 1ull)) & (signal_tree_type::capacity - 1);
             if (b == 0)
             {
                 biasFlags = ((subTreeIndex + 1) * signal_tree_type::capacity);
