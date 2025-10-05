@@ -99,8 +99,8 @@ public:
             tasks_.push_back(this->create_contract(
                 [task, taskId]()
                 {
-                    task();                         // execute the task
-                    bcpp::this_contract::schedule();               // reschedule this contract (like pushing to back of work queue again)
+                    task();                             // execute the task
+                    bcpp::this_contract::schedule();    // reschedule this contract (like pushing to back of work queue again)
                     tlsExecutionCount[taskId]++;
                 }));
         }

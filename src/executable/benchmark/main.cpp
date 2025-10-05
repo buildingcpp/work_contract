@@ -254,7 +254,7 @@ int main
         std::string line = "==================================================================================\n";
         std::cout << fmt::format("\n\nTask {}, average task duration is {:.2f} ns\n", title, get_task_duration(task));
         auto header = fmt::format("{:<15}{:<20}{:<25}{:<10}{:<10}\n", "Thread Count:", "Tasks per Second:", "Tasks per Thread/sec:", "Task cv:", "Thread cv:");
-
+/*
         std::cout << "\n" << green << line << "TBB concurrent_queue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::tbb>(i, task);
@@ -266,15 +266,15 @@ int main
         std::cout << "\n" << green << line << "MoodyCamel ConcurrentQueue:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::moody_camel>(i, task);
-
+*/
         std::cout << "\n" << green << line << "Work Contract:\n" << header << line << defaultColor;
-        for (auto i = 2ull; i <= max_threads; ++i)
+        for (auto i = 1ull; i <= max_threads; ++i)
             test_algorithm<algorithm::work_contract>(i, task);
-
+/*
         std::cout << "\n" << green << line << "Blocking Work Contract:\n" << header << line << defaultColor;
         for (auto i = 2ull; i <= max_threads; ++i)
             test_algorithm<algorithm::blocking_work_contract>(i, task);
-    };
+*/    };
 
     run_test(hash_task<0>, "maximum contention"); // approx 1.5ns
     run_test(hash_task<1>, "high contention"); // approx 17ns

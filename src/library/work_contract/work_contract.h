@@ -1,5 +1,6 @@
 #pragma once
 
+#include "./internal/work_contract_id.h"
 #include <include/synchronization_mode.h>
 #include <include/non_copyable.h>
 
@@ -22,7 +23,7 @@ namespace bcpp::implementation
     {
     public:
 
-        using id_type = std::uint64_t;
+        using id_type = internal::work_contract::contract_index;
 
         enum class initial_state 
         {
@@ -41,32 +42,31 @@ namespace bcpp::implementation
 
         bool release();
 
-        bool deschedule();
-
         bool is_valid() const;
 
         explicit operator bool() const;
 
     private:
 
-        friend class work_contract_group<T>;
         using work_contract_group_type = work_contract_group<T>;
+
+        template <synchronization_mode> friend class work_contract_group;
+
+        using shared_state = typename work_contract_group_type::shared_state_type;
+        using shared_state_segment = typename shared_state::segment_type;
 
         work_contract
         (
-            work_contract_group_type *, 
-            std::shared_ptr<typename work_contract_group_type::release_token>,
-            id_type,
+            std::shared_ptr<shared_state>,
+            internal::work_contract::work_contract_id_concept auto,
             initial_state = initial_state::unscheduled
         );
 
         id_type get_id() const;
 
-        work_contract_group_type *   owner_{};
-
-        std::atomic<std::shared_ptr<typename work_contract_group_type::release_token>> releaseToken_;
-
-        id_type                 id_{};
+        id_type                         id_{};
+        std::shared_ptr<shared_state>   sharedStates_;
+        shared_state_segment *          sharedStateSegment_;
 
     }; // class work_contract
 
@@ -88,14 +88,13 @@ namespace bcpp
 template <bcpp::synchronization_mode T>
 inline bcpp::implementation::work_contract<T>::work_contract
 (
-    work_contract_group_type * owner,
-    std::shared_ptr<typename work_contract_group_type::release_token> releaseToken, 
-    id_type id,
+    std::shared_ptr<shared_state> sharedStates,
+    internal::work_contract::work_contract_id_concept auto workContractId,
     initial_state initialState
 ):
-    owner_(owner),
-    releaseToken_(releaseToken),
-    id_(id)
+    id_(workContractId),
+    sharedStates_(sharedStates),
+    sharedStateSegment_(sharedStates_->get_segment(workContractId))
 {
     if (initialState == initial_state::scheduled)
         schedule();
@@ -108,12 +107,13 @@ inline bcpp::implementation::work_contract<T>::work_contract
 (
     work_contract && other
 ):
-    owner_(other.owner_),
-    releaseToken_(other.releaseToken_.exchange(nullptr)),
-    id_(other.id_)
+    id_(other.id_),
+    sharedStates_(std::move(other.sharedStates_)),
+    sharedStateSegment_(other.sharedStateSegment_)
 {
-    other.owner_ = {};
     other.id_ = {};
+    other.sharedStateSegment_ = {};
+    other.sharedStates_ = {};
 }
 
     
@@ -128,11 +128,13 @@ inline auto bcpp::implementation::work_contract<T>::operator =
     {
         release();
 
-        owner_ = other.owner_;
         id_ = other.id_;
-        releaseToken_ = other.releaseToken_.exchange(nullptr);
-        other.owner_ = {};
+        sharedStates_ = std::move(other.sharedStates_);
+        sharedStateSegment_ = other.sharedStateSegment_;
+
         other.id_ = {};
+        other.sharedStateSegment_ = {};
+        other.sharedStates_ = {};
     }
     return *this;
 }
@@ -164,7 +166,7 @@ inline void bcpp::implementation::work_contract<T>::schedule
 (
 )
 {
-    owner_->schedule(id_);
+    sharedStateSegment_->schedule(id_);
 }
 
 
@@ -174,10 +176,9 @@ inline bool bcpp::implementation::work_contract<T>::release
 (
 )
 {
-    if (auto releaseToken = releaseToken_.exchange(nullptr); releaseToken)
+    if (is_valid())
     {
-        releaseToken->schedule(*this);
-        owner_ = {};
+        sharedStateSegment_->release(id_);
         return true;
     }
     return false;
@@ -190,9 +191,7 @@ inline bool bcpp::implementation::work_contract<T>::is_valid
 (
 ) const
 {
-    if (auto releaseToken = releaseToken_.load(); releaseToken)
-        return releaseToken->is_valid();
-    return false;
+    return (sharedStateSegment_ != nullptr);
 }
 
 

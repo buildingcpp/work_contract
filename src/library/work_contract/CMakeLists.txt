@@ -1,7 +1,7 @@
 
 add_library(work_contract
     ./work_contract_group.cpp
-    ./work_contract_this.cpp
+    ./internal/this_contract.cpp
 )
 
 

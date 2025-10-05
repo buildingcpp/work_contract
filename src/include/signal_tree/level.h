@@ -151,7 +151,7 @@ inline auto bcpp::implementation::signal_tree::level<T>::select
     node_index nodeIndex
 ) noexcept -> std::pair<signal_index, bool>
 {
-    static auto constexpr bias_bits_consumed_to_select_counter = minimum_bit_count(counters_per_node) - 1;  // was node_count
+    static auto constexpr bias_bits_consumed_to_select_counter = minimum_bit_count(counters_per_node) - 1;
 
     auto [selectedCounter, nodeIsZero] = nodes_[nodeIndex]. template select<select_function>(biasFlags);
     biasFlags <<= bias_bits_consumed_to_select_counter;
