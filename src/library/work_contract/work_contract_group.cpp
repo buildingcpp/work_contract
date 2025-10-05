@@ -78,7 +78,7 @@ auto bcpp::implementation::work_contract_group<T>::get_available_contract
         auto subTreeIndex (nextAvailableTreeIndex_++ & subTreeMask_);
         if (!available_[subTreeIndex].empty())
         {
-            if (auto [signalIndex, _] = available_[subTreeIndex].select<largest_child_selector>(0); signalIndex != ~0ull)
+            if (auto [signalIndex, _] = available_[subTreeIndex].template select<largest_child_selector>(0); signalIndex != ~0ull)
             {
                 work_contract_id workContractId(subTreeIndex * signal_tree_capacity);
                 workContractId += signalIndex;

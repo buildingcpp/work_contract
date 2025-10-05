@@ -1,12 +1,12 @@
 #include <library/work_contract.h>
+#include <include/jthread.h>
 #include <iostream>
-#include <thread>
 #include <chrono>
 
 int main() 
 {
     bcpp::blocking_work_contract_group group;
-    std::jthread worker([&group](auto stopToken) 
+    bcpp::detail::jthread worker([&group](auto stopToken)
             {
                 while (not stopToken.stop_requested())
                     group.execute_next_contract(/*std::chrono::seconds(1)*/); // use infinite wait - note: we could use wait with timeout here as well

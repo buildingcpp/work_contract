@@ -2,11 +2,10 @@
 
 #include <include/synchronization_mode.h>
 #include <include/non_copyable.h>
+#include <include/atomic_shared_ptr.h>
 
-#include <atomic>
 #include <cstdint>
 #include <utility>
-#include <memory>
 
 
 namespace bcpp::implementation
@@ -64,7 +63,7 @@ namespace bcpp::implementation
 
         work_contract_group_type *   owner_{};
 
-        std::atomic<std::shared_ptr<typename work_contract_group_type::release_token>> releaseToken_;
+        detail::atomic_shared_ptr<typename work_contract_group_type::release_token> releaseToken_;
 
         id_type                 id_{};
 

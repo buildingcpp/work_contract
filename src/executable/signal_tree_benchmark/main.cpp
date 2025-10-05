@@ -17,6 +17,7 @@
 #include <ratio>
 #include <functional>
 
+#include <include/jthread.h>
 #include <include/signal_tree.h>
 
 // it might look a bit odd to hard code the cpus to use in the benchmark
@@ -38,10 +39,16 @@ bool set_cpu_affinity
     int value
 )
 {
+#ifdef __linux__
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
     CPU_SET(value, &cpuSet);
     return (pthread_setaffinity_np(pthread_self(), sizeof(cpuSet), &cpuSet) == 0);
+#else
+    // macOS doesn't support CPU affinity via pthread_setaffinity_np
+    (void)value;
+    return true;
+#endif
 }
 
 
@@ -105,9 +112,9 @@ int main
                     activeThreadCount--;
                 };
 
-        std::vector<std::jthread> threads(num_threads);
+        std::vector<bcpp::detail::jthread> threads(num_threads);
         for (auto & thread : threads)
-            thread = std::jthread(test);
+            thread = bcpp::detail::jthread(test);
 
         while (activeThreadCount != num_threads)
             ;

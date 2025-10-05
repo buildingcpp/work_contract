@@ -7,8 +7,12 @@ add_library(work_contract
 
 target_link_libraries(work_contract 
     pthread
-    rt
 )
+
+# rt library is only available on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(work_contract rt)
+endif()
 
 
 target_include_directories(work_contract

@@ -5,6 +5,10 @@ target_include_directories(4_blocking_mode PUBLIC ${_work_contract_dir}/src ${_i
 target_link_libraries(4_blocking_mode 
 PRIVATE
     pthread
-    rt
     work_contract
 )
+
+# rt library is only available on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(4_blocking_mode PRIVATE rt)
+endif()
