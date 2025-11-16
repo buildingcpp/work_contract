@@ -4,6 +4,7 @@ set(CMAKE_CXX_STANDARD 20)
 project(work_contract)
 
 option(WORK_CONTRACT_BUILD_BENCHMARK "build work contract benchmarks" ON)
+option(WORK_CONTRACT_BUILD_EXAMPLES "build work contract examples" ON)
 
 if(NOT CMAKE_BUILD_TYPE)
     set(CMAKE_BUILD_TYPE Release)
