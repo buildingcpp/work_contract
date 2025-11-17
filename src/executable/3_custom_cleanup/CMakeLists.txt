@@ -5,6 +5,10 @@ target_include_directories(3_custom_cleanup PUBLIC ${_work_contract_dir}/src ${_
 target_link_libraries(3_custom_cleanup 
 PRIVATE
     pthread
-    rt
     work_contract
 )
+
+# rt library is only available on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(3_custom_cleanup PRIVATE rt)
+endif()

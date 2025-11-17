@@ -15,9 +15,13 @@ PRIVATE
 target_link_libraries(benchmark 
 PRIVATE
     pthread
-    rt
     work_contract
     tbb_static
     fmt
 )
+
+# rt library is only available on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(benchmark PRIVATE rt)
+endif()
 

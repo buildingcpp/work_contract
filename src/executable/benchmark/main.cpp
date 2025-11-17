@@ -1,3 +1,4 @@
+#include <include/jthread.h>
 #include <cstddef>
 #include <iostream>
 #include <memory>
@@ -7,7 +8,6 @@
 #include <cstdint>
 #include <atomic>
 #include <vector>
-#include <thread>
 #include <cmath>
 #include <iomanip>
 #include <span>
@@ -42,7 +42,7 @@ std::size_t thread_local tlsCurrentTaskId;
 
 std::atomic<bool> startTest = false;
 std::atomic<bool> endTest = false;
-std::vector<std::jthread> testThreads;
+std::vector<bcpp::detail::jthread> testThreads;
 
 #include "./test_harness.h"
 
@@ -53,10 +53,17 @@ bool set_cpu_affinity
     int value
 )
 {
+#ifdef __linux__
     cpu_set_t cpuSet;
     CPU_ZERO(&cpuSet);
     CPU_SET(value, &cpuSet);
     return (pthread_setaffinity_np(pthread_self(), sizeof(cpuSet), &cpuSet) == 0);
+#else
+    // macOS doesn't support CPU affinity via pthread_setaffinity_np
+    // Thread affinity can be set via thread_policy_set but it's more complex
+    (void)value;
+    return true;
+#endif
 }
 
 
@@ -125,7 +132,7 @@ auto create_worker_threads
     auto index = 0;
     for (auto & thread : testThreads)
     {
-        thread = std::jthread([&readyThreadCount, work, threadId = index]
+        thread = bcpp::detail::jthread([&readyThreadCount, work, threadId = index]
                 (
                 ) mutable
                 {                 
@@ -211,7 +218,7 @@ auto get_task_duration
     bool volatile end = false;
     bool volatile ready = false;
     std::size_t total = 0;
-    std::jthread thread([&]()
+    bcpp::detail::jthread thread([&]()
             {
                 ready = true;
                 while (!start)

@@ -5,6 +5,10 @@ target_include_directories(1_basic_contract_execution PUBLIC ${_work_contract_di
 target_link_libraries(1_basic_contract_execution 
 PRIVATE
     pthread
-    rt
     work_contract
 )
+
+# rt library is only available on Linux
+if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    target_link_libraries(1_basic_contract_execution PRIVATE rt)
+endif()

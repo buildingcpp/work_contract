@@ -119,18 +119,18 @@ namespace bcpp
     } // namespace bcpp::implementation::signal_tree
 
 
-    template <std::size_t N> 
+    template <std::uint64_t N>
     using signal_tree = implementation::signal_tree::tree<implementation::signal_tree::select_tree_size(N)>;
 
 } // namespace bcpp
 
 
 //=============================================================================
-template <std::size_t N>
+template <std::uint64_t N>
 inline std::pair<bool, bool> bcpp::implementation::signal_tree::tree<N>::set
 (
     // set the leaf node associated with the index to 1
-    signal_index signalIndex
+    bcpp::signal_index signalIndex
 ) noexcept 
 {
     return rootLevel_.set(signalIndex);
@@ -138,7 +138,7 @@ inline std::pair<bool, bool> bcpp::implementation::signal_tree::tree<N>::set
 
 
 //=============================================================================
-template <std::size_t N>
+template <std::uint64_t N>
 inline bool bcpp::implementation::signal_tree::tree<N>::empty
 (
     // returns true if no leaf nodes are 'set' (root count is zero)
@@ -150,14 +150,14 @@ inline bool bcpp::implementation::signal_tree::tree<N>::empty
 
 
 //=============================================================================
-template <std::size_t N>
+template <std::uint64_t N>
 template <template <std::uint64_t, std::uint64_t> class select_function>
 inline auto bcpp::implementation::signal_tree::tree<N>::select 
 (
     // select and return the index of a leaf which is 'set'
     // return invalid_signal_index if no leaf is 'set' (empty tree)
     std::uint64_t bias
-) noexcept -> std::pair<signal_index, bool>
+) noexcept -> std::pair<bcpp::signal_index, bool>
 {
     static auto constexpr number_of_bias_bits = (65 - minimum_bit_count(capacity));
     bias <<= number_of_bias_bits;

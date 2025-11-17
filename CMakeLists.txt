@@ -69,12 +69,34 @@ if (WORK_CONTRACT_BUILD_BENCHMARK)
     fetch_dependency("https://github.com/fmtlib/fmt.git;master")
     fetch_dependency("https://github.com/cameron314/concurrentqueue.git;master")
     #fetch_dependency("https://github.com/boostorg/lockfree.git;master")
-    fetch_dependency("https://github.com/erez-strauss/lockfree_mpmc_queue.git;master")
+
+    # Handle lockfree_mpmc_queue - on non-Linux platforms, just fetch headers to avoid build issues
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        # On Linux, use normal fetch_dependency which builds the library
+        fetch_dependency("https://github.com/erez-strauss/lockfree_mpmc_queue.git;master")
+    else()
+        # On other platforms (macOS, Windows), only fetch headers - building fails due to x86 intrinsics
+        if ("${_lockfree_mpmc_queue_src_path}" STREQUAL "")
+            message("Fetching Content: lockfree_mpmc_queue (headers only)")
+            FetchContent_Declare(
+                lockfree_mpmc_queue
+                GIT_REPOSITORY "https://github.com/erez-strauss/lockfree_mpmc_queue.git"
+                GIT_TAG master
+                SOURCE_DIR "${CMAKE_BINARY_DIR}/lockfree_mpmc_queue-src"
+                BINARY_DIR "${CMAKE_BINARY_DIR}/lockfree_mpmc_queue-build"
+            )
+            FetchContent_Populate(lockfree_mpmc_queue)
+            # Don't add_subdirectory to avoid build issues on non-Linux platforms
+            set(_lockfree_mpmc_queue_src_path ${CMAKE_BINARY_DIR}/lockfree_mpmc_queue-src CACHE STRING "")
+        endif()
+    endif()
+
     fetch_dependency("https://github.com/google/googletest.git;main")
+
     set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    set(TBB_BUILD_TESTS OFF)
-    set(TBB_BUILD_SHARED OFF)
-    set(TBB_BUILD_STATIC ON)
+    set(TBB_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+    set(TBB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
+    set(TBB_BUILD_STATIC ON CACHE BOOL "" FORCE)
     fetch_dependency("https://github.com/wjakob/tbb.git;master")
 endif(WORK_CONTRACT_BUILD_BENCHMARK)
 

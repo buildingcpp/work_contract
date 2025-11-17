@@ -1,11 +1,11 @@
 #include <library/work_contract.h>
+#include <include/jthread.h>
 #include <iostream>
-#include <thread>
 
 int main() 
 {
     bcpp::work_contract_group group;
-    std::jthread worker([&group](auto stopToken) 
+    bcpp::detail::jthread worker([&group](auto stopToken)
             {
                 while (not stopToken.stop_requested())
                     group.execute_next_contract();
